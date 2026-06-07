@@ -4,6 +4,8 @@ A web-based, desktop-class clinical text editor designed to assist in identifyin
 
 The application operates as a **serverless, browser-only application**. It runs entirely inside the client’s browser, communicating directly with local or external LLM providers and storing your settings securely in browser storage.
 
+<img width="1258" height="843" alt="Bildschirmfoto 2026-06-07 um 16 19 17" src="https://github.com/user-attachments/assets/e3425050-4220-4864-9787-0d14d5b47940" />
+
 ---
 
 > [!WARNING]
@@ -50,9 +52,9 @@ The application operates as a **serverless, browser-only application**. It runs 
 
 ## Tech Stack
 
-*   **Frontend UI & Layout**: Objective-J, Cappuccino SDK (a high-fidelity port of AppKit and Foundation to the browser) [1].
-*   **State Management**: `CPUserDefaults` (Browser LocalStorage wrapper) [1].
-*   **Inference Connection**: Asynchronous browser `fetch` API directly querying configured endpoints [1].
+*   **Frontend UI & Layout**: Objective-J, [Cappuccino](https://github.com/cappuccino/cappuccino) (a high-fidelity port of AppKit and Foundation to the browser).
+*   **State Management**: Browser LocalStorage.
+*   **Inference Connection**: Asynchronous browser `fetch` API directly querying configured endpoints.
 
 ---
 
@@ -67,7 +69,7 @@ The application operates as a **serverless, browser-only application**. It runs 
     ```
 
 > [!TIP]
-> ### 💡 Model Recommendation for German Clinical Texts
+> ### Model Recommendation for German Clinical Texts
 > In local testing on Apple Silicon (specifically a **MacBook Pro M2 with 32 GB RAM**), the model **`gemma4:e4b-mlx`** delivered reliable results for identifying and structuring German physician letters (*Arztbriefe*). It is recommended as a starting point for local, private clinical annotation.
 
 ### Setup and Running Locally
