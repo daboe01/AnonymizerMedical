@@ -223,7 +223,7 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
     [theWindow orderFront:self];
 
     // Sample initial clinical text block
-    [_editorTextView setString:@"St. Elisabeth-Krankenhaus Köln\nAbteilung für Kardiologie\nWerthmannstraße 1, 50935 Köln\n\nAnmeldung zur ambulanten Kontrolluntersuchung\n\nPatient: Max Mustermann, geb. 12.03.1956\nAnschrift: Hauptstraße 45, 50667 Köln\n\nSehr geehrte Kolleginnen und Kollegen,\n\nwir berichten über den oben genannten Patienten, der sich am 04.06.2026 in unserer kardiologischen Ambulanz vorstellte. Die Untersuchung wurde von Frau Dr. med. Anna Schreiber durchgeführt.\n\nMit freundlichen Grüßen,\nDr. med. Anna Schreiber\nOberärztin Kardiologie"];
+    [_editorTextView setString:@"St. Gertrauden-Krankenhaus\nAbteilung für Kardiologie\nMusterstraße 1, 50005 Köln\n\nAnmeldung zur ambulanten Kontrolluntersuchung\n\nPatient: Max Mustermann, geb. 12.03.1956\nAnschrift: Hauptstraße 1, 50067 Köln\n\nSehr geehrte Kolleginnen und Kollegen,\n\nwir berichten über den oben genannten Patienten, der sich am 04.06.2026 in unserer kardiologischen Ambulanz vorstellte. Die Untersuchung wurde von Frau Dr. med. Anna Schreiber durchgeführt.\n\nMit freundlichen Grüßen,\nDr. med. Anna Schreiber\nOberärztin Kardiologie"];
 }
 
 // --- DYNAMIC LAYOUT RESIZING HANDLER (CPSPLITVIEW DELEGATE) ---
