@@ -12,7 +12,7 @@ The application operates as a **serverless, browser-only application**. It runs 
 > 2. **On-Premises Infrastructure Only**: When dealing with real, sensitive, or protected patient data, **only on-premises (local) LLM integrations (such as Ollama running on a secure local network/localhost) should be used**. Sending patient-identifiable medical records to external cloud APIs (such as Google, Groq, or OpenRouter) without appropriate data processing agreements is a severe breach of patient confidentiality and strict medical privacy laws (including GDPR and HIPAA).
 
 ---
-
+<img width="1260" height="835" alt="Bildschirmfoto 2026-06-07 um 16 16 39" src="https://github.com/user-attachments/assets/8c089b29-3efa-464e-b5a9-15ed76de06f8" />
 ## Key Features
 
 *   **Serverless / Client-Side Execution**: No custom backend or server-side database required. The app can be hosted directly via static web hosting (like GitHub Pages).
