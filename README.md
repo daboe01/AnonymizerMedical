@@ -23,7 +23,6 @@ The application operates as a **serverless, browser-only application**. It runs 
     *   🟢 **Medical Staff** (`staff`): Names of treating physicians, nurses, assistants, or clinic staff. Replaced by `[MED_MITARBEITER]`.
     *   🔵 **Clinical Facility** (`clinic`): Names of hospitals, specialized wards, practices, and physical addresses. Replaced by `[KLINIK]`.
 *   **Bulk Anonymization**: A dedicated **"Komplett anonymisieren"** button safely replaces all identified entities with their respective placeholders (`[PATIENT]`, `[MED_MITARBEITER]`, `[KLINIK]`) in a single pass.
-*   **Inversion Errechnung (Back-to-Front Redaction)**: Bulk anonymization processes replacements from the end of the document to the front. This prevents text selection offsets from drifting during active substitution.
 *   **Local LLM Integration (Ollama)**: Easily connects to a locally hosted instance of Ollama to keep 100% of the data processing on your own machine.
 
 ---
