@@ -4,7 +4,7 @@ A web-based, desktop-class clinical text editor designed to assist in identifyin
 
 The application operates as a **serverless, browser-only application**. It runs entirely inside the client’s browser, communicating directly with local or external LLM providers and storing your settings securely in browser storage.
 
-<img width="1258" height="843" alt="Bildschirmfoto 2026-06-07 um 16 19 17" src="https://github.com/user-attachments/assets/e3425050-4220-4864-9787-0d14d5b47940" />
+<img width="1257" height="834" alt="Bildschirmfoto 2026-06-07 um 16 57 07" src="https://github.com/user-attachments/assets/8649f22d-438d-4dca-bb1e-70ef4a66a875" />
 
 ---
 
