@@ -76,8 +76,8 @@ The application operates as a **serverless, browser-only application**. It runs 
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/daboe01/GrammarMom2.git
-    cd GrammarMom2
+    git clone https://github.com/daboe01/AnonymizerMedical.git
+    cd AnonymizerMedical
     ```
 
 2.  **Start a local static server**:
