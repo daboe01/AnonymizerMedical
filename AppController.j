@@ -40,7 +40,6 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
     CPView              _sidebarDocumentView;
     CPButton            _analyzeButton;
     CPButton            _anonymizeButton;
-    CPPopUpButton       _languagePopUp;
     CPTextField         _statusLabel;
     
     // Progress & Sheet Controls
@@ -148,38 +147,28 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
     [topBar addSubview:_analyzeButton];
 
     // Anonymize All Button
-    _anonymizeButton = [[CPButton alloc] initWithFrame:CGRectMake(150, 12, 175, 26)];
+    _anonymizeButton = [[CPButton alloc] initWithFrame:CGRectMake(155, 12, 175, 26)];
     [_anonymizeButton setTitle:@"Komplett anonymisieren"];
     [_anonymizeButton setTarget:self];
     [_anonymizeButton setAction:@selector(anonymizeDocumentAll:)];
     [topBar addSubview:_anonymizeButton];
 
-    // Language Selector Popup
-    _languagePopUp = [[CPPopUpButton alloc] initWithFrame:CGRectMake(330, 12, 95, 26) pullsDown:NO];
-    [_languagePopUp addItemWithTitle:@"Deutsch"];
-    [[_languagePopUp lastItem] setRepresentedObject:@"de"];
-    [_languagePopUp addItemWithTitle:@"English"];
-    [[_languagePopUp lastItem] setRepresentedObject:@"en"];
-    [_languagePopUp addItemWithTitle:@"Français"];
-    [[_languagePopUp lastItem] setRepresentedObject:@"fr"];
-    [topBar addSubview:_languagePopUp];
-
     // Unified Session Import/Export Button
-    _transferButton = [[CPButton alloc] initWithFrame:CGRectMake(430, 12, 150, 26)];
+    _transferButton = [[CPButton alloc] initWithFrame:CGRectMake(340, 12, 150, 26)];
     [_transferButton setTitle:@"Import / Export JSON"];
     [_transferButton setTarget:self];
     [_transferButton setAction:@selector(openTransferSheet:)];
     [topBar addSubview:_transferButton];
 
     // Progress Bar
-    _progressBar = [[CPProgressIndicator alloc] initWithFrame:CGRectMake(590, 18, 100, 14)];
+    _progressBar = [[CPProgressIndicator alloc] initWithFrame:CGRectMake(500, 18, 100, 14)];
     [_progressBar setStyle:CPProgressIndicatorBarStyle];
     [_progressBar setIndeterminate:NO];
     [_progressBar setHidden:YES];
     [topBar addSubview:_progressBar];
 
     // Status Label
-    _statusLabel = [[CPTextField alloc] initWithFrame:CGRectMake(700, 15, 435, 20)];
+    _statusLabel = [[CPTextField alloc] initWithFrame:CGRectMake(610, 15, 525, 20)];
     [_statusLabel setStringValue:@"Klinischen Text einfügen und Prüfung starten."];
     [_statusLabel setFont:[CPFont systemFontOfSize:12]];
     [_statusLabel setAutoresizingMask:CPViewWidthSizable];
@@ -190,6 +179,7 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
     var splitView = [[CPSplitView alloc] initWithFrame:CGRectMake(0, 50, CGRectGetWidth(bounds), splitHeight)];
     [splitView setAutoresizingMask:CPViewWidthSizable | CPViewHeightSizable];
     [splitView setVertical:YES];
+    [splitView setDelegate:self]; // Ermöglicht das Abfangen von Resizing-Events
 
     var dividerWidth = [splitView dividerThickness];
     var leftWidth = (CGRectGetWidth([splitView bounds]) - dividerWidth) * 0.65;
@@ -206,6 +196,9 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
     [_editorTextView setMinSize:CGSizeMake(0, 0)];
     [_editorTextView setMaxSize:CGSizeMake(100000, 100000)];
     [_editorTextView setHorizontallyResizable:NO];
+    [_editorTextView setAutoresizingMask:CPViewWidthSizable];
+    [[_editorTextView textContainer] setWidthTracksTextView:YES];
+
     [_editorTextView setVerticallyResizable:YES];
     [_editorTextView setRichText:YES];
     [_editorTextView setFont:[CPFont fontWithName:@"Arial" size:14.0]];
@@ -231,6 +224,29 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
 
     // Sample initial clinical text block
     [_editorTextView setString:@"St. Elisabeth-Krankenhaus Köln\nAbteilung für Kardiologie\nWerthmannstraße 1, 50935 Köln\n\nAnmeldung zur ambulanten Kontrolluntersuchung\n\nPatient: Max Mustermann, geb. 12.03.1956\nAnschrift: Hauptstraße 45, 50667 Köln\n\nSehr geehrte Kolleginnen und Kollegen,\n\nwir berichten über den oben genannten Patienten, der sich am 04.06.2026 in unserer kardiologischen Ambulanz vorstellte. Die Untersuchung wurde von Frau Dr. med. Anna Schreiber durchgeführt.\n\nMit freundlichen Grüßen,\nDr. med. Anna Schreiber\nOberärztin Kardiologie"];
+}
+
+// --- DYNAMIC LAYOUT RESIZING HANDLER (CPSPLITVIEW DELEGATE) ---
+
+- (void)splitViewDidResizeSubviews:(CPNotification)aNotification
+{
+    if (_editorTextView)
+    {
+        var editorClipWidth = CGRectGetWidth([[_editorTextView superview] bounds]);
+        if (editorClipWidth > 0)
+        {
+            [_editorTextView setFrameSize:CGSizeMake(editorClipWidth, CGRectGetHeight([_editorTextView frame]))];
+        }
+    }
+
+    if (_sidebarDocumentView)
+    {
+        var sidebarClipWidth = CGRectGetWidth([[_sidebarScrollView contentView] bounds]);
+        if (sidebarClipWidth > 0)
+        {
+            [_sidebarDocumentView setFrameSize:CGSizeMake(sidebarClipWidth, CGRectGetHeight([_sidebarDocumentView frame]))];
+        }
+    }
 }
 
 // --- CONFIGURATION PANEL ---
@@ -564,45 +580,41 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
 
 - (CPString)promptForLanguage:(CPString)langCode text:(CPString)pText
 {
-    var lines = [];
-    if (langCode === "de" || langCode === "en" || langCode === "fr") {
-        // Da es sich primär um klinische Dokumente (meistens deutsch) handelt, nutzen wir den angepassten PII-Prompt
-        lines = [
-            "Sie sind ein klinischer Datenschutz-Assistent zur Anonymisierung von Patientenunterlagen und Arztbriefen.",
-            "Analysieren Sie den bereitgestellten Textabschnitt auf sensible, personenbezogene Daten und kategorisieren Sie diese exakt in folgende drei Gruppen:",
-            "",
-            "1. \"patient\": Daten, die den Patienten direkt oder indirekt identifizieren.",
-            "   Dazu gehören: Patienten-Namen (z.B. Max Mustermann), Geburtsdaten (z.B. 12.03.1956), Anschriften (z.B. Hauptstraße 45, Köln), Telefonnummern, Versicherungsnummern, Patienten-IDs.",
-            "   Der vorgeschlagene Text (suggested_text) muss IMMER genau \"[PATIENT]\" lauten.",
-            "",
-            "2. \"staff\": Daten, die behandelnde Ärzte, Ärztinnen, Pflegekräfte, Therapeuten oder sonstiges klinisches Personal identifizieren.",
-            "   Dazu gehören: Namen von Ärzten und medizinischem Personal (z.B. Frau Dr. med. Anna Schreiber, Dr. Schreiber, OA Dr. Meier).",
-            "   Der vorgeschlagene Text (suggested_text) muss IMMER genau \"[MED_MITARBEITER]\" lauten.",
-            "",
-            "3. \"clinic\": Daten, die das behandelnde Krankenhaus, die Klinik, Abteilung oder die Arztpraxis identifizieren.",
-            "   Dazu gehören: Krankenhausnamen (z.B. St. Elisabeth-Krankenhaus), Praxis-Namen, Abteilungen (z.B. Abteilung für Kardiologie), Stationen (z.B. Station 4B) sowie deren Adressen.",
-            "   Der vorgeschlagene Text (suggested_text) muss IMMER genau \"[KLINIK]\" lauten.",
-            "",
-            "WICHTIGE ANWEISUNGEN:",
-            "- Das Feld \"original_text\" muss exakt dem fehlerhaften/zu anonymisierenden Text aus dem bereitgestellten Absatz entsprechen.",
-            "- Geben Sie AUSSCHLIESSLICH gültiges, reines JSON aus, das ein flaches Array von Objekten gemäß dem unten stehenden Schema enthält.",
-            "- Verwenden Sie keine Markdown-Code-Blöcke (wie ```json) und fügen Sie keinen zusätzlichen Floskeltext hinzu.",
-            "",
-            "JSON-Schema für das Ausgabeformat:",
-            "[",
-            "  {",
-            "    \"category\": \"patient\" | \"staff\" | \"clinic\",",
-            "    \"title\": \"Kurze Bezeichnung (z.B. Patientendaten / Klinische Mitarbeiter / Krankenhaus)\",",
-            "    \"original_text\": \"exakter_originaler_text_aus_dem_dokument\",",
-            "    \"suggested_text\": \"[PATIENT]\" | \"[MED_MITARBEITER]\" | \"[KLINIK]\",",
-            "    \"explanation\": \"Erklärung, warum diese Entität geschützt werden muss (z.B. Name des Patienten).\"",
-            "  }",
-            "]",
-            "",
-            "Hier ist der zu prüfende klinische Text:",
-            pText
-        ];
-    }
+    var lines = [
+        "Sie sind ein klinischer Datenschutz-Assistent zur Anonymisierung von Patientenunterlagen und Arztbriefen.",
+        "Analysieren Sie den bereitgestellten Textabschnitt auf sensible, personenbezogene Daten und kategorisieren Sie diese exakt in folgende drei Gruppen:",
+        "",
+        "1. \"patient\": Daten, die den Patienten direkt oder indirekt identifizieren.",
+        "   Dazu gehören: Patienten-Namen (z.B. Max Mustermann), Geburtsdaten (z.B. 12.03.1956), Anschriften (z.B. Hauptstraße 45, Köln), Telefonnummern, Versicherungsnummern, Patienten-IDs.",
+        "   Der vorgeschlagene Text (suggested_text) muss IMMER genau \"[PATIENT]\" lauten.",
+        "",
+        "2. \"staff\": Daten, die behandelnde Ärzte, Ärztinnen, Pflegekräfte, Therapeuten oder sonstiges klinisches Personal identifizieren.",
+        "   Dazu gehören: Namen von Ärzten und medizinischem Personal (z.B. Frau Dr. med. Anna Schreiber, Dr. Schreiber, OA Dr. Meier).",
+        "   Der vorgeschlagene Text (suggested_text) muss IMMER genau \"[MED_MITARBEITER]\" lauten.",
+        "",
+        "3. \"clinic\": Daten, die das behandelnde Krankenhaus, die Klinik, Abteilung oder die Arztpraxis identifizieren.",
+        "   Dazu gehören: Krankenhausnamen (z.B. St. Elisabeth-Krankenhaus), Praxis-Namen, Abteilungen (z.B. Abteilung für Kardiologie), Stationen (z.B. Station 4B) sowie deren Adressen.",
+        "   Der vorgeschlagene Text (suggested_text) muss IMMER genau \"[KLINIK]\" lauten.",
+        "",
+        "WICHTIGE ANWEISUNGEN:",
+        "- Das Feld \"original_text\" muss exakt dem fehlerhaften/zu anonymisierenden Text aus dem bereitgestellten Absatz entsprechen.",
+        "- Geben Sie AUSSCHLIESSLICH gültiges, reines JSON aus, das ein flaches Array von Objekten gemäß dem unten stehenden Schema enthält.",
+        "- Verwenden Sie keine Markdown-Code-Blöcke (wie ```json) und fügen Sie keinen zusätzlichen Floskeltext hinzu.",
+        "",
+        "JSON-Schema für das Ausgabeformat:",
+        "[",
+        "  {",
+        "    \"category\": \"patient\" | \"staff\" | \"clinic\",",
+        "    \"title\": \"Kurze Bezeichnung (z.B. Patientendaten / Klinische Mitarbeiter / Krankenhaus)\",",
+        "    \"original_text\": \"exakter_originaler_text_aus_dem_dokument\",",
+        "    \"suggested_text\": \"[PATIENT]\" | \"[MED_MITARBEITER]\" | \"[KLINIK]\",",
+        "    \"explanation\": \"Erklärung, warum diese Entität geschützt werden muss (z.B. Name des Patienten).\"",
+        "  }",
+        "]",
+        "",
+        "Hier ist der zu prüfende klinische Text:",
+        pText
+    ];
     return lines.join("\n");
 }
 
@@ -641,14 +653,11 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
 
     [_analyzeButton setEnabled:NO];
     [_anonymizeButton setEnabled:NO];
-    [_languagePopUp setEnabled:NO];
     [_transferButton setEnabled:NO];
     [_statusLabel setStringValue:@"Klinische Dokumentenprüfung läuft... Fortschritt: 0%"];
 
-    var langCode = [[_languagePopUp selectedItem] representedObject] || @"de";
-
     for (var i = 0; i < _totalParagraphs; i++) {
-        [self analyzeParagraph:paragraphs[i] index:i langCode:langCode];
+        [self analyzeParagraph:paragraphs[i] index:i langCode:@"de"];
     }
 }
 
@@ -833,7 +842,6 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
     if (_completedParagraphs === _totalParagraphs) {
         [_analyzeButton setEnabled:YES];
         [_anonymizeButton setEnabled:YES];
-        [_languagePopUp setEnabled:YES];
         [_transferButton setEnabled:YES];
         [_progressBar setHidden:YES];
         [_statusLabel setStringValue:@"Analyse abgeschlossen. Sensible Daten wurden farbig markiert."];
@@ -852,7 +860,11 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
 
     [[_sidebarDocumentView subviews] makeObjectsPerformSelector:@selector(removeFromSuperview)];
 
-    var sidebarWidth = CGRectGetWidth([_sidebarScrollView bounds]) - 20;
+    var sidebarWidth = CGRectGetWidth([[_sidebarScrollView contentView] bounds]) - 20;
+    if (sidebarWidth <= 0) {
+        sidebarWidth = CGRectGetWidth([_sidebarScrollView bounds]) - 20;
+    }
+    
     var currentY = 15;
     var docString = [_editorTextView string];
 
@@ -886,7 +898,7 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
             [textStorage addAttribute:CPBackgroundColorAttributeName value:highlightColor range:absRange];
             [textStorage addAttribute:CorrectionAlertIdentifierAttributeName value:alert.id range:absRange];
 
-            var card = [self createAlertCardFrame:CGRectMake(10, currentY, sidebarWidth, 110) forAlert:alert paragraphIndex:i];
+            var card = [self createAlertCardFrame:CGRectMake(10, currentY, sidebarWidth - 10, 110) forAlert:alert paragraphIndex:i];
             [_sidebarDocumentView addSubview:card];
             
             [_alertCardsMap setObject:card forKey:alert.id];
@@ -894,7 +906,7 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
         }
     }
 
-    [_sidebarDocumentView setFrameSize:CGSizeMake(sidebarWidth + 20, currentY + 30)];
+    [_sidebarDocumentView setFrameSize:CGSizeMake(sidebarWidth, currentY + 30)];
 }
 
 - (CPView)createAlertCardFrame:(CGRect)frame forAlert:(id)alert paragraphIndex:(int)pIndex
@@ -937,14 +949,16 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
     [description setFont:[CPFont systemFontOfSize:11.0]];
     [description setTextColor:[CPColor colorWithWhite:0.25 alpha:1.0]];
     [description setHitTests:NO];
+    [description setAutoresizingMask:CPViewWidthSizable];
     [container addSubview:description];
 
     // Aktions-Button zur Einzelanonymisierung
-    var actionBtn = [[CPButton alloc] initWithFrame:CGRectMake(15, 52, contentWidth - 50, 26)];
+    var actionBtn = [[CPButton alloc] initWithFrame:CGRectMake(15, 52, contentWidth - 30, 26)];
     [actionBtn setTitle:[CPString stringWithFormat:@"Ersetzen durch: '%@'", alert.suggested_text]];
     [actionBtn setFont:[CPFont boldSystemFontOfSize:11.0]];
     [actionBtn setTarget:self];
     [actionBtn setAction:@selector(applyCorrectionAction:)];
+    [actionBtn setAutoresizingMask:CPViewWidthSizable];
     actionBtn._representedObject = { "alert": alert, "paragraphIndex": pIndex };
     [container addSubview:actionBtn];
 

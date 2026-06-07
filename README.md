@@ -66,6 +66,10 @@ The application operates as a **serverless, browser-only application**. It runs 
     OLLAMA_ORIGINS="*" ollama serve
     ```
 
+> [!TIP]
+> ### 💡 Model Recommendation for German Clinical Texts
+> In local testing on Apple Silicon (specifically a **MacBook Pro M2 with 32 GB RAM**), the model **`gemma4:e4b-mlx`** delivered reliable results for identifying and structuring German physician letters (*Arztbriefe*). It is recommended as a starting point for local, private clinical annotation.
+
 ### Setup and Running Locally
 
 1.  **Clone the repository**:
@@ -82,18 +86,6 @@ The application operates as a **serverless, browser-only application**. It runs 
 
 3.  **Open the application**:
     Navigate to `http://localhost:8000` in your web browser.
-
----
-
-## Deploying to GitHub Pages
-
-Since the application is fully static, you can deploy it to GitHub Pages with minimal configuration:
-
-1. Go to your repository on GitHub.
-2. Select **Settings** -> **Pages** (located under *Code and automation* in the sidebar).
-3. Under **Build and deployment**, change **Source** to **Deploy from a branch**.
-4. Select your default branch (e.g., `main` or `master`) and target the `/ (root)` directory, then click **Save**.
-5. Your instance will be online at `https://<your-username>.github.io/GrammarMom2/` within a few minutes.
 
 ---
 
