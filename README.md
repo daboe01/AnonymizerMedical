@@ -52,7 +52,7 @@ The application operates as a **serverless, browser-only application**. It runs 
 
 ## Tech Stack
 
-*   **Frontend UI & Layout**: Objective-J, [Cappuccino][[https:](https://github.com/cappuccino/cappuccino)] (a high-fidelity port of AppKit and Foundation to the browser).
+*   **Frontend UI & Layout**: Objective-J, [Cappuccino](https://github.com/cappuccino/cappuccino) (a high-fidelity port of AppKit and Foundation to the browser).
 *   **State Management**: Browser LocalStorage.
 *   **Inference Connection**: Asynchronous browser `fetch` API directly querying configured endpoints.
 
