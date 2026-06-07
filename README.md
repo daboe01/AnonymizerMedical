@@ -1,43 +1,43 @@
-# AI-Powered Writing Assistant
+# Clinical Anonymization & Annotation Assistant
 
-A web-based, desktop-class text editor and proofreading suite. The application analyzes narrative text paragraph-by-paragraph, highlights errors (spelling, grammar, clarity, and style) with visual overlays, and allows users to apply suggested corrections with a single click.
+A web-based, desktop-class clinical text editor designed to assist in identifying, annotating, and redacting Personally Identifiable Information (PII) from physician letters (*Arztbriefe*) and medical reports.
 
-This project is built as a **serverless, browser-only application**—eliminating the need for a custom server-side backend. The application runs entirely in the client's browser, communicating directly with LLM providers while storing API keys and configuration state securely in local browser storage.
+The application operates as a **serverless, browser-only application**. It runs entirely inside the client’s browser, communicating directly with local or external LLM providers and storing your settings securely in browser storage.
 
 ---
-<img width="1011" height="837" alt="Bildschirmfoto 2026-05-23 um 19 35 44" src="https://github.com/user-attachments/assets/57864753-bbd3-4ac8-8c76-0979b2eb6f8b" />
+
+> [!WARNING]
+> ### ⚠️ Critical Disclaimer & Privacy Notice
+> 1. **100% User Responsibility**: This software is an assistant tool. Natural Language Processing (NLP) and Large Language Models (LLMs) are subject to hallucinations, omissions, and errors. The user bears **100% of the responsibility** for ensuring that all protected health information is thoroughly and correctly redacted before any document is shared. Manual verification of every output is mandatory.
+> 2. **On-Premises Infrastructure Only**: When dealing with real, sensitive, or protected patient data, **only on-premises (local) LLM integrations (such as Ollama running on a secure local network/localhost) should be used**. Sending patient-identifiable medical records to external cloud APIs (such as Google, Groq, or OpenRouter) without appropriate data processing agreements is a severe breach of patient confidentiality and strict medical privacy laws (including GDPR and HIPAA).
+
+---
 
 ## Key Features
 
-*   **Serverless / Frontend-Only Architecture**: Zero server-side installation required. Accessible directly via standard web hosting (such as GitHub Pages).
-*   **Flexible LLM Integrations**: Connect seamlessly to various model providers directly from the UI:
-    *   **Ollama**: Local execution for complete privacy.
-    *   **Groq API**: High-speed cloud-based inference.
-    *   **Google Gemini**: Highly-capable reasoning models.
-    *   **OpenRouter**: Access to a vast range of open and closed-source models (with `google/gemini-2.0-flash-001` configured as the standard out-of-the-box model).
-*   **Multilingual Analysis**: Built-in, client-side system prompts for German, English, and French analysis.
-*   **Context-Aware Highlighting**: Highlights text segments based on four distinct categories:
-    *   🔴 **Spelling**: Typos and spelling mistakes.
-    *   🔵 **Grammar**: Syntax issues, tense inconsistencies, and punctuation.
-    *   🟢 **Clarity**: Passive voice, overly wordy sentences, or confusing phrasing.
-    *   🟣 **Style**: Tone improvements and formal adjustments.
-*   **Client-Side Text Alignment**: Exact offset and length calculations are computed dynamically in the browser, matching LLM recommendations against the document text.
-*   **Dynamic Range Shifting**: Applying a correction automatically recalculates and shifts the offsets of all remaining alerts in the paragraph, preventing highlight misalignment during active editing.
+*   **Serverless / Client-Side Execution**: No custom backend or server-side database required. The app can be hosted directly via static web hosting (like GitHub Pages).
+*   **Farbcodierte Annotation (Color-Coded Highlights)**: Categorizes clinical entities into three distinct buckets for visual review:
+    *   🔴 **Patient Data** (`patient`): Patient names, dates of birth, addresses, and contact details. Replaced by `[PATIENT]`.
+    *   🟢 **Medical Staff** (`staff`): Names of treating physicians, nurses, assistants, or clinic staff. Replaced by `[MED_MITARBEITER]`.
+    *   🔵 **Clinical Facility** (`clinic`): Names of hospitals, specialized wards, practices, and physical addresses. Replaced by `[KLINIK]`.
+*   **Bulk Anonymization**: A dedicated **"Komplett anonymisieren"** button safely replaces all identified entities with their respective placeholders (`[PATIENT]`, `[MED_MITARBEITER]`, `[KLINIK]`) in a single pass.
+*   **Inversion Errechnung (Back-to-Front Redaction)**: Bulk anonymization processes replacements from the end of the document to the front. This prevents text selection offsets from drifting during active substitution.
+*   **Local LLM Integration (Ollama)**: Easily connects to a locally hosted instance of Ollama to keep 100% of the data processing on your own machine.
 
 ---
 
 ## Architecture Overview
 
 ```text
- ┌────────────────────────┐         Direct HTTPS Fetch (CORS)      ┌─────────────────────────┐
- │                        │  ───────────────────────────────────>  │   External LLM APIs     │
- │  Cappuccino Frontend   │                                        │  • Ollama (Localhost)   │
- │     (Objective-J)      │  <───────────────────────────────────  │  • Groq API             │
- │                        │        Raw JSON Response Objects       │  • Google Gemini        │
- │  Runs fully in browser │                                        │  • OpenRouter           │
- └───────────┬────────────┘                                        └─────────────────────────┘
+ ┌────────────────────────┐         Secure Local Fetch (CORS)      ┌─────────────────────────┐
+ │                        │  ───────────────────────────────────>  │   On-Premises LLM       │
+ │  Cappuccino Frontend   │                                        │   (Localhost Ollama)    │
+ │     (Objective-J)      │  <───────────────────────────────────  │   Runs entirely local   │
+ │                        │        Structured JSON Response        └─────────────────────────┘
+ │  Runs fully in browser │
+ └───────────┬────────────┘
              │
-             │ Persistent Storage (State & Keys)
+             │ Persistent Settings (No document text is saved here)
              ▼
  ┌────────────────────────┐
  │     Browser Storage    │
@@ -50,9 +50,9 @@ This project is built as a **serverless, browser-only application**—eliminatin
 
 ## Tech Stack
 
-*   **Frontend UI & Engine**: Objective-J, Cappuccino SDK (AppKit & Foundation ports for the web)
-*   **State Management**: `CPUserDefaults` (Browser LocalStorage wrapper)
-*   **Inference Layer**: Native JavaScript `fetch` calling REST endpoints asynchronously
+*   **Frontend UI & Layout**: Objective-J, Cappuccino SDK (a high-fidelity port of AppKit and Foundation to the browser) [1].
+*   **State Management**: `CPUserDefaults` (Browser LocalStorage wrapper) [1].
+*   **Inference Connection**: Asynchronous browser `fetch` API directly querying configured endpoints [1].
 
 ---
 
@@ -60,12 +60,11 @@ This project is built as a **serverless, browser-only application**—eliminatin
 
 ### Prerequisites
 
-*   A modern web browser (Safari, Chrome, Firefox, Edge).
-*   **For local AI models (Ollama)**: Ensure Ollama is running locally with CORS enabled to allow browser requests:
+*   A modern, standards-compliant web browser.
+*   **To run locally with Ollama (Recommended for Privacy)**: Ensure your local instance is running and has Cross-Origin Resource Sharing (CORS) enabled so your browser is permitted to query the port:
     ```bash
     OLLAMA_ORIGINS="*" ollama serve
     ```
-*   **For Cloud APIs (Groq, Gemini, OpenRouter)**: An active API key from the respective provider.
 
 ### Setup and Running Locally
 
@@ -76,25 +75,25 @@ This project is built as a **serverless, browser-only application**—eliminatin
     ```
 
 2.  **Start a local static server**:
-    Since this is a fully static client-side application, you can run it using any simple web server. For example, using Python:
+    Since this is a fully static client-side application, any simple HTTP server is sufficient. For instance, using Python:
     ```bash
     python3 -m http.server 8000
     ```
 
 3.  **Open the application**:
-    Navigate to `http://localhost:8000` (or `http://localhost:8000/index.html`) in your browser.
+    Navigate to `http://localhost:8000` in your web browser.
 
 ---
 
 ## Deploying to GitHub Pages
 
-Because the app is entirely static, deployment is straightforward:
+Since the application is fully static, you can deploy it to GitHub Pages with minimal configuration:
 
-1.  Go to your repository on GitHub.
-2.  Navigate to **Settings** -> **Pages** (in the left-hand sidebar under *Code and automation*).
-3.  Under **Build and deployment**, set **Source** to **Deploy from a branch**.
-4.  Choose your main branch (e.g., `main`) and `/ (root)` folder, then click **Save**.
-5.  Your writing assistant will be live in a couple of minutes at `https://<your-username>.github.io/GrammarMom2/`.
+1. Go to your repository on GitHub.
+2. Select **Settings** -> **Pages** (located under *Code and automation* in the sidebar).
+3. Under **Build and deployment**, change **Source** to **Deploy from a branch**.
+4. Select your default branch (e.g., `main` or `master`) and target the `/ (root)` directory, then click **Save**.
+5. Your instance will be online at `https://<your-username>.github.io/GrammarMom2/` within a few minutes.
 
 ---
 
