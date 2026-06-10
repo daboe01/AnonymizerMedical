@@ -62,22 +62,35 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 - (void)keyDown:(CPEvent)anEvent
 {
     var keyCode = [anEvent keyCode];
-    var cards = [[self superview] subviews];
-    var index = [cards indexOfObject:self];
+    
+    // Sort cards by physical vertical position to avoid reliance on fluctuating z-order array indexes
+    var cards = [];
+    var rawSubviews = [[self superview] subviews];
+    for (var i = 0; i < [rawSubviews count]; i++) {
+        var sv = [rawSubviews objectAtIndex:i];
+        if ([sv isKindOfClass:[AlertCardView class]]) {
+            cards.push(sv);
+        }
+    }
+    cards.sort(function(a, b) {
+        return CGRectGetMinY([a frame]) - CGRectGetMinY([b frame]);
+    });
+
+    var index = cards.indexOf(self);
 
     if (keyCode === CPDownArrowKeyCode)
     {
-        if (index !== CPNotFound && index < [cards count] - 1)
+        if (index !== -1 && index < cards.length - 1)
         {
-            var nextCard = [cards objectAtIndex:index + 1];
+            var nextCard = cards[index + 1];
             [[self window] makeFirstResponder:nextCard];
         }
     }
     else if (keyCode === CPUpArrowKeyCode)
     {
-        if (index !== CPNotFound && index > 0)
+        if (index !== -1 && index > 0)
         {
-            var prevCard = [cards objectAtIndex:index - 1];
+            var prevCard = cards[index - 1];
             [[self window] makeFirstResponder:prevCard];
         }
     }
@@ -144,6 +157,9 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     
     int                 _totalParagraphs;
     int                 _completedParagraphs;
+
+    BOOL                _isProgrammaticSelection;
+    id                  _focusTimeoutId;  // Token pointer for debouncing async layout selection shifts
 }
 
 - (void)orderFrontFontPanel:(id)sender
@@ -315,6 +331,23 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
     // Sample initial clinical text block
     [_editorTextView setString:@"St. Gertrauden-Krankenhaus\nAbteilung für Kardiologie\nMusterstraße 1, 50005 Köln\n\nAnmeldung zur ambulanten Kontrolluntersuchung\n\nPatient: Max Mustermann, geb. 12.03.1956\nAnschrift: Hauptstraße 1, 50067 Köln\n\nSehr geehrte Kolleginnen und Kollegen,\n\nwir berichten über den oben genannten Patienten, der sich am 04.06.2026 in unserer kardiologischen Ambulanz vorstellte. Die Untersuchung wurde von Frau Dr. med. Anna Schreiber durchgeführt.\n\nMit freundlichen Grüßen,\nDr. med. Anna Schreiber\nOberärztin Kardiologie"];
+}
+
+// Helper method to safely access cards in vertical visual layout order
+- (CPArray)sortedAlertCards
+{
+    var cards = [];
+    var rawSubviews = [_sidebarDocumentView subviews];
+    for (var i = 0; i < [rawSubviews count]; i++) {
+        var sv = [rawSubviews objectAtIndex:i];
+        if ([sv isKindOfClass:[AlertCardView class]]) {
+            cards.push(sv);
+        }
+    }
+    cards.sort(function(a, b) {
+        return CGRectGetMinY([a frame]) - CGRectGetMinY([b frame]);
+    });
+    return cards;
 }
 
 // --- DYNAMIC LAYOUT RESIZING HANDLER (CPSPLITVIEW DELEGATE) ---
@@ -1052,6 +1085,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 {
     var context = [card representedObject];
     if (!context) return;
+    
     var alert = context.alert;
     var pIndex = context.paragraphIndex;
 
@@ -1061,16 +1095,39 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     
     var pText = pData.text;
     var absoluteParaOffset = [docString rangeOfString:pText].location;
-    if (absoluteParaOffset === CPNotFound) {
+
+    if (absoluteParaOffset === CPNotFound)
         return;
-    }
 
     var absRange = CPMakeRange(absoluteParaOffset + alert.offset, alert.length);
-    [_editorTextView setSelectedRange:absRange];
-    
-    // Scroll editor to visible passage
-    [_editorTextView scrollRangeToVisible:absRange];
-    
+    var currentRange = [_editorTextView selectedRange];
+
+    // Programmatically sync selection only if range is different to prevent cycles
+    if (currentRange.location !== absRange.location || currentRange.length !== absRange.length)
+    {
+        _isProgrammaticSelection = YES;
+        [_editorTextView setSelectedRange:absRange];
+        [_editorTextView scrollRangeToVisible:absRange];
+        _isProgrammaticSelection = NO;
+    }
+
+    // Clear any previously queued focus actions to debouce rapid navigation inputs
+    if (_focusTimeoutId)
+    {
+        clearTimeout(_focusTimeoutId);
+        _focusTimeoutId = nil;
+    }
+
+    // Only restore responder state asynchronously if focus was stolen or isn't already active
+    var theWindow = [card window];
+    if ([theWindow firstResponder] !== card)
+    {
+        _focusTimeoutId = setTimeout(function() {
+            [theWindow makeFirstResponder:card];
+            _focusTimeoutId = nil;
+        }, 30);
+    }
+
     var cardFrame = [card frame];
     [[_sidebarScrollView contentView] scrollToPoint:CGPointMake(0, MAX(0, cardFrame.origin.y - 15))];
 }
@@ -1096,8 +1153,10 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
     var absRange = CPMakeRange(absoluteParaOffset + alert.offset, alert.length);
 
+    _isProgrammaticSelection = YES;
     [_editorTextView setSelectedRange:absRange];
     [_editorTextView insertText:alert.suggested_text];
+    _isProgrammaticSelection = NO;
 
     var lengthDelta = [alert.suggested_text length] - alert.length;
     var alerts = pData.alerts;
@@ -1114,17 +1173,21 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
     [pData.alerts removeObject:alert];
 
-    var cards = [_sidebarDocumentView subviews];
-    var activeIndex = [cards indexOfObject:card];
+    // Determine current index utilizing the sorted list
+    var cards = [self sortedAlertCards];
+    var activeIndex = cards.indexOf(card);
 
     [self renderHighlightsAndSidebar];
 
-    var updatedCards = [_sidebarDocumentView subviews];
-    if ([updatedCards count] > 0)
+    var updatedCards = [self sortedAlertCards];
+    if (updatedCards.length > 0)
     {
-        var nextFocusIndex = MIN(activeIndex, [updatedCards count] - 1);
-        var nextCard = [updatedCards objectAtIndex:nextFocusIndex];
-        [[_editorTextView window] makeFirstResponder:nextCard];
+        var nextFocusIndex = Math.min(activeIndex, updatedCards.length - 1);
+        if (nextFocusIndex !== -1)
+        {
+            var nextCard = updatedCards[nextFocusIndex];
+            [[_editorTextView window] makeFirstResponder:nextCard];
+        }
     }
     else
     {
@@ -1196,43 +1259,66 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
 - (void)focusNextAlert:(id)sender
 {
-    var cards = [_sidebarDocumentView subviews];
-    if ([cards count] === 0) return;
+    var cards = [self sortedAlertCards];
+    if (cards.length === 0) return;
 
     var currentFirst = [[_editorTextView window] firstResponder];
-    var index = [cards indexOfObject:currentFirst];
-
-    if (index === CPNotFound)
+    
+    // Wenn der Editor aktiv ist und bereits eine Karte visuell markiert wurde, fokussiere diese direkt
+    if (currentFirst === _editorTextView && _currentHighlightedCard)
     {
-        [[_editorTextView window] makeFirstResponder:[cards objectAtIndex:0]];
+        [[_editorTextView window] makeFirstResponder:_currentHighlightedCard];
+        return;
     }
-    else if (index < [cards count] - 1)
+
+    var index = cards.indexOf(currentFirst);
+    if (index === -1)
     {
-        [[_editorTextView window] makeFirstResponder:[cards objectAtIndex:index + 1]];
+        [[_editorTextView window] makeFirstResponder:cards[0]];
+    }
+    else if (index < cards.length - 1)
+    {
+        [[_editorTextView window] makeFirstResponder:cards[index + 1]];
     }
 }
 
 - (void)focusPreviousAlert:(id)sender
 {
-    var cards = [_sidebarDocumentView subviews];
-    if ([cards count] === 0) return;
+    var cards = [self sortedAlertCards];
+    if (cards.length === 0) return;
 
     var currentFirst = [[_editorTextView window] firstResponder];
-    var index = [cards indexOfObject:currentFirst];
-
-    if (index === CPNotFound)
+    
+    // Wenn der Editor aktiv ist und bereits eine Karte visuell markiert wurde, fokussiere diese direkt
+    if (currentFirst === _editorTextView && _currentHighlightedCard)
     {
-        [[_editorTextView window] makeFirstResponder:[cards lastObject]];
+        [[_editorTextView window] makeFirstResponder:_currentHighlightedCard];
+        return;
+    }
+
+    var index = cards.indexOf(currentFirst);
+    if (index === -1)
+    {
+        [[_editorTextView window] makeFirstResponder:cards[cards.length - 1]];
     }
     else if (index > 0)
     {
-        [[_editorTextView window] makeFirstResponder:[cards objectAtIndex:index - 1]];
+        [[_editorTextView window] makeFirstResponder:cards[index - 1]];
     }
 }
 
 - (void)textViewDidChangeSelection:(CPNotification)aNotification
 {
+    if (_isProgrammaticSelection)
+        return;
+
+    // Decouple editor updates entirely when user actively navigates sidebar cards
+    var activeFirstResponder = [[_editorTextView window] firstResponder];
+    if ([activeFirstResponder isKindOfClass:[AlertCardView class]])
+        return;
+
     var selectedRange = [_editorTextView selectedRange];
+
     if (selectedRange.length < 0 || !_paragraphsData) {
         return;
     }
@@ -1278,6 +1364,19 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
                     var cardFrame = [activeCard frame];
                     [[_sidebarScrollView contentView] scrollToPoint:CGPointMake(0, MAX(0, cardFrame.origin.y - 15))];
+
+                    // Transfer keyboard focus only on direct mouse interaction to avoid disrupting keyboard-only text typing/arrowing
+                    var currentEvent = [CPApp currentEvent];
+                    var isMouseEvent = currentEvent && (
+                        [currentEvent type] === CPLeftMouseDown ||
+                        [currentEvent type] === CPLeftMouseUp ||
+                        [currentEvent type] === CPLeftMouseDragged
+                    );
+
+                    if (isMouseEvent)
+                    {
+                        [[_editorTextView window] makeFirstResponder:activeCard];
+                    }
                 }
                 return;
             }
