@@ -4,7 +4,7 @@ A web-based, desktop-class clinical text editor designed to assist in identifyin
 
 The application operates as a **serverless, browser-only application**. It runs entirely inside the client’s browser, communicating directly with local or external LLM providers and storing your settings securely in browser storage.
 
-<img width="1258" height="843" alt="Bildschirmfoto 2026-06-07 um 16 19 17" src="https://github.com/user-attachments/assets/e3425050-4220-4864-9787-0d14d5b47940" />
+<img width="1257" height="834" alt="Bildschirmfoto 2026-06-07 um 16 57 07" src="https://github.com/user-attachments/assets/8649f22d-438d-4dca-bb1e-70ef4a66a875" />
 
 ---
 
@@ -23,7 +23,6 @@ The application operates as a **serverless, browser-only application**. It runs 
     *   🟢 **Medical Staff** (`staff`): Names of treating physicians, nurses, assistants, or clinic staff. Replaced by `[MED_MITARBEITER]`.
     *   🔵 **Clinical Facility** (`clinic`): Names of hospitals, specialized wards, practices, and physical addresses. Replaced by `[KLINIK]`.
 *   **Bulk Anonymization**: A dedicated **"Komplett anonymisieren"** button safely replaces all identified entities with their respective placeholders (`[PATIENT]`, `[MED_MITARBEITER]`, `[KLINIK]`) in a single pass.
-*   **Inversion Errechnung (Back-to-Front Redaction)**: Bulk anonymization processes replacements from the end of the document to the front. This prevents text selection offsets from drifting during active substitution.
 *   **Local LLM Integration (Ollama)**: Easily connects to a locally hosted instance of Ollama to keep 100% of the data processing on your own machine.
 
 ---
@@ -76,8 +75,8 @@ The application operates as a **serverless, browser-only application**. It runs 
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/daboe01/GrammarMom2.git
-    cd GrammarMom2
+    git clone https://github.com/daboe01/AnonymizerMedical.git
+    cd AnonymizerMedical
     ```
 
 2.  **Start a local static server**:
