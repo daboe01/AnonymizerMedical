@@ -5,29 +5,101 @@
 var CorrectionHighlightColorAttributeName = @"CorrectionHighlightColorAttributeName";
 var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttributeName";
 
-// Hilfsklasse für eine interaktive, neutrale Klickfläche ohne Standard-Highlighting
-@implementation AlertCardBackgroundView : CPView
+// Fallback constants for system function keys if missing in active runtime scope
+var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
+    CPF7FunctionKey = CPF7FunctionKey || @"\uf70a",
+    CPF8FunctionKey = CPF8FunctionKey || @"\uf70b";
+
+// Subclass of CPBox that handles keyboard focus and keystroke events directly
+@implementation AlertCardView : CPBox
 {
-    id _target;
-    SEL _action;
     id _representedObject @accessors(property=representedObject);
 }
 
-- (void)setTarget:(id)aTarget
+- (BOOL)acceptsFirstResponder
 {
-    _target = aTarget;
+    return YES;
 }
 
-- (void)setAction:(SEL)anAction
+- (BOOL)becomeFirstResponder
 {
-    _action = anAction;
+    var context = [self representedObject];
+    if (context)
+    {
+        var alert = context.alert;
+        var strongBorderColor = [CPColor colorWithRed:0.90 green:0.1 blue:0.1 alpha:1.0]; // Rot für Patient
+        if (alert.category === @"staff") {
+            strongBorderColor = [CPColor colorWithRed:0.10 green:0.70 blue:0.10 alpha:1.0]; // Grün für Arzt
+        } else if (alert.category === @"clinic") {
+            strongBorderColor = [CPColor colorWithRed:0.10 green:0.40 blue:0.90 alpha:1.0]; // Blau für Klinik
+        }
+
+        [self setBorderWidth:2.5];
+        [self setBorderColor:strongBorderColor];
+
+        var appController = [CPApp delegate];
+        if (appController && [appController respondsToSelector:@selector(selectAlertTextActionWithCard:)])
+        {
+            [appController selectAlertTextActionWithCard:self];
+        }
+    }
+    return YES;
 }
 
+- (BOOL)resignFirstResponder
+{
+    [self setBorderWidth:1.0];
+    [self setBorderColor:[CPColor colorWithWhite:0.85 alpha:1.0]];
+    return YES;
+}
+
+// Request first responder keyboard focus when the card background is clicked
 - (void)mouseDown:(CPEvent)anEvent
 {
-    if (_target && _action && [_target respondsToSelector:_action])
+    [[self window] makeFirstResponder:self];
+}
+
+- (void)keyDown:(CPEvent)anEvent
+{
+    var keyCode = [anEvent keyCode];
+    var cards = [[self superview] subviews];
+    var index = [cards indexOfObject:self];
+
+    if (keyCode === CPDownArrowKeyCode)
     {
-        [_target performSelector:_action withObject:self];
+        if (index !== CPNotFound && index < [cards count] - 1)
+        {
+            var nextCard = [cards objectAtIndex:index + 1];
+            [[self window] makeFirstResponder:nextCard];
+        }
+    }
+    else if (keyCode === CPUpArrowKeyCode)
+    {
+        if (index !== CPNotFound && index > 0)
+        {
+            var prevCard = [cards objectAtIndex:index - 1];
+            [[self window] makeFirstResponder:prevCard];
+        }
+    }
+    else if (keyCode === CPReturnKeyCode || keyCode === CPSpaceKeyCode)
+    {
+        var appController = [CPApp delegate];
+        if (appController && [appController respondsToSelector:@selector(applyCorrectionForCard:)])
+        {
+            [appController applyCorrectionForCard:self];
+        }
+    }
+    else if (keyCode === CPLeftArrowKeyCode || keyCode === CPEscapeKeyCode)
+    {
+        var appController = [CPApp delegate];
+        if (appController && [appController respondsToSelector:@selector(returnFocusToEditor)])
+        {
+            [appController returnFocusToEditor];
+        }
+    }
+    else
+    {
+        [super keyDown:anEvent];
     }
 }
 
@@ -115,6 +187,25 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
     var appItem = [mainMenu insertItemWithTitle:@"Klinischer Assistent" action:nil keyEquivalent:nil atIndex:0];
     var appMenu = [[CPMenu alloc] initWithTitle:@"Klinischer Assistent"];
     [appMenu addItemWithTitle:@"Einstellungen..." action:@selector(openSettingsSheet:) keyEquivalent:@","];
+    
+    // VS Code Style Error Keys (F2 / Shift + F2)
+    var nextF2 = [appMenu addItemWithTitle:@"Nächster Schutzbereich (F2)" action:@selector(focusNextAlert:) keyEquivalent:CPF2FunctionKey];
+    var prevF2 = [appMenu addItemWithTitle:@"Vorheriger Schutzbereich (Shift+F2)" action:@selector(focusPreviousAlert:) keyEquivalent:CPF2FunctionKey];
+    [prevF2 setKeyEquivalentModifierMask:CPShiftKeyMask];
+    
+    // IntelliJ Style Error Keys (F8 / Shift + F8)
+    var nextF8 = [appMenu addItemWithTitle:@"Nächster Schutzbereich (F8)" action:@selector(focusNextAlert:) keyEquivalent:CPF8FunctionKey];
+    var prevF8 = [appMenu addItemWithTitle:@"Vorheriger Schutzbereich (Shift+F8)" action:@selector(focusPreviousAlert:) keyEquivalent:CPF8FunctionKey];
+    [prevF8 setKeyEquivalentModifierMask:CPShiftKeyMask];
+
+    // MS Word Style Error Keys (Alt + F7)
+    var wordStyleItem = [appMenu addItemWithTitle:@"Nächster Schutzbereich (Word)" action:@selector(focusNextAlert:) keyEquivalent:CPF7FunctionKey];
+    [wordStyleItem setKeyEquivalentModifierMask:CPAlternateKeyMask];
+
+    // IntelliJ Style "Quick Fix" (Alt + Enter / Alt + Return)
+    var quickFixItem = [appMenu addItemWithTitle:@"Schnellanonymisierung" action:@selector(applyActiveCorrectionFromMenu:) keyEquivalent:CPCarriageReturnCharacter];
+    [quickFixItem setKeyEquivalentModifierMask:CPAlternateKeyMask];
+
     [mainMenu setSubmenu:appMenu forItem:appItem];
 
     // Format Menu with Font Panel
@@ -898,7 +989,7 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
             [textStorage addAttribute:CPBackgroundColorAttributeName value:highlightColor range:absRange];
             [textStorage addAttribute:CorrectionAlertIdentifierAttributeName value:alert.id range:absRange];
 
-            var card = [self createAlertCardFrame:CGRectMake(10, currentY, sidebarWidth - 10, 110) forAlert:alert paragraphIndex:i];
+            var card = [self createAlertCardFrame:CGRectMake(10, currentY, sidebarWidth, 110) forAlert:alert paragraphIndex:i];
             [_sidebarDocumentView addSubview:card];
             
             [_alertCardsMap setObject:card forKey:alert.id];
@@ -906,12 +997,13 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
         }
     }
 
-    [_sidebarDocumentView setFrameSize:CGSizeMake(sidebarWidth, currentY + 30)];
+    [_sidebarDocumentView setFrameSize:CGSizeMake(sidebarWidth + 20, currentY + 30)];
 }
 
 - (CPView)createAlertCardFrame:(CGRect)frame forAlert:(id)alert paragraphIndex:(int)pIndex
 {
-    var cardBox = [[CPBox alloc] initWithFrame:frame];
+    var cardBox = [[AlertCardView alloc] initWithFrame:frame];
+    [cardBox setRepresentedObject:{ "alert": alert, "paragraphIndex": pIndex }];
     
     [cardBox setBoxType:CPBoxCustom];
     [cardBox setBorderType:CPLineBorder];
@@ -934,15 +1026,7 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
 
     [cardBox setFillColor:cardBgColor];
 
-    // Transparenter Klickhintergrund über die gesamte Inhaltsbox
-    var bgClickView = [[AlertCardBackgroundView alloc] initWithFrame:[container bounds]];
-    [bgClickView setAutoresizingMask:CPViewWidthSizable | CPViewHeightSizable];
-    [bgClickView setTarget:self];
-    [bgClickView setAction:@selector(selectAlertTextAction:)];
-    [bgClickView setRepresentedObject:{ "alert": alert, "paragraphIndex": pIndex }];
-    [container addSubview:bgClickView positioned:CPWindowBelow relativeTo:nil];
-
-    // Beschreibungstext (Hit-Tests sind deaktiviert, um Klicks an bgClickView weiterzuleiten)
+    // Beschreibungstext (Hit-Tests sind deaktiviert, um Klicks an cardBox weiterzuleiten)
     var description = [[CPTextField alloc] initWithFrame:CGRectMake(15, 5, contentWidth - 25, 45)];
     [description setStringValue:alert.explanation];
     [description setLineBreakMode:CPLineBreakByWordWrapping];
@@ -959,15 +1043,14 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
     [actionBtn setTarget:self];
     [actionBtn setAction:@selector(applyCorrectionAction:)];
     [actionBtn setAutoresizingMask:CPViewWidthSizable];
-    actionBtn._representedObject = { "alert": alert, "paragraphIndex": pIndex };
     [container addSubview:actionBtn];
 
     return cardBox;
 }
 
-- (void)selectAlertTextAction:(id)sender
+- (void)selectAlertTextActionWithCard:(AlertCardView)card
 {
-    var context = [sender representedObject];
+    var context = [card representedObject];
     if (!context) return;
     var alert = context.alert;
     var pIndex = context.paragraphIndex;
@@ -988,7 +1071,163 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
     // Scroll editor to visible passage
     [_editorTextView scrollRangeToVisible:absRange];
     
+    var cardFrame = [card frame];
+    [[_sidebarScrollView contentView] scrollToPoint:CGPointMake(0, MAX(0, cardFrame.origin.y - 15))];
+}
+
+- (void)applyCorrectionForCard:(AlertCardView)card
+{
+    var context = [card representedObject];
+    if (!context) return;
+    
+    var alert = context.alert;
+    var pIndex = context.paragraphIndex;
+
+    var docString = [_editorTextView string];
+    var pData = _paragraphsData[pIndex];
+    if (!pData) return;
+    
+    var pText = pData.text;
+    var absoluteParaOffset = [docString rangeOfString:pText].location;
+    if (absoluteParaOffset === CPNotFound) {
+        [_statusLabel setStringValue:@"Dokument-Kontext-Abweichung. Bitte erneut prüfen."];
+        return;
+    }
+
+    var absRange = CPMakeRange(absoluteParaOffset + alert.offset, alert.length);
+
+    [_editorTextView setSelectedRange:absRange];
+    [_editorTextView insertText:alert.suggested_text];
+
+    var lengthDelta = [alert.suggested_text length] - alert.length;
+    var alerts = pData.alerts;
+
+    for (var i = 0; i < alerts.length; i++) {
+        if (alerts[i].offset > alert.offset) {
+            alerts[i].offset += lengthDelta;
+        }
+    }
+
+    var preStr = [pText substringToIndex:alert.offset];
+    var postStr = [pText substringFromIndex:alert.offset + alert.length];
+    pData.text = preStr + alert.suggested_text + postStr;
+
+    [pData.alerts removeObject:alert];
+
+    var cards = [_sidebarDocumentView subviews];
+    var activeIndex = [cards indexOfObject:card];
+
+    [self renderHighlightsAndSidebar];
+
+    var updatedCards = [_sidebarDocumentView subviews];
+    if ([updatedCards count] > 0)
+    {
+        var nextFocusIndex = MIN(activeIndex, [updatedCards count] - 1);
+        var nextCard = [updatedCards objectAtIndex:nextFocusIndex];
+        [[_editorTextView window] makeFirstResponder:nextCard];
+    }
+    else
+    {
+        [self returnFocusToEditor];
+    }
+
+    [_statusLabel setStringValue:@"Einzelnes Datum wurde erfolgreich geschützt."];
+}
+
+- (void)applyActiveCorrectionFromMenu:(id)sender
+{
+    var activeFirstResponder = [[_editorTextView window] firstResponder];
+    
+    if ([activeFirstResponder isKindOfClass:[AlertCardView class]])
+    {
+        [self applyCorrectionForCard:activeFirstResponder];
+        return;
+    }
+    
+    if (activeFirstResponder === _editorTextView && _paragraphsData)
+    {
+        var selectedRange = [_editorTextView selectedRange];
+        var docString = [_editorTextView string];
+        var cursorLoc = selectedRange.location;
+
+        for (var i = 0; i < _paragraphsData.length; i++) {
+            var pData = _paragraphsData[i];
+            if (!pData || !pData.completed) continue;
+            
+            var pText = pData.text;
+            var absoluteParaOffset = [docString rangeOfString:pText].location;
+            if (absoluteParaOffset === CPNotFound) continue;
+
+            var alerts = pData.alerts;
+            for (var j = 0; j < alerts.length; j++) {
+                var alert = alerts[j];
+                var alertStart = absoluteParaOffset + alert.offset;
+                var alertEnd = alertStart + alert.length;
+
+                if (cursorLoc >= alertStart && cursorLoc <= alertEnd) {
+                    var activeCard = [_alertCardsMap objectForKey:alert.id];
+                    if (activeCard) {
+                        [self applyCorrectionForCard:activeCard];
+                    }
+                    return;
+                }
+            }
+        }
+    }
+}
+
+- (void)applyCorrectionAction:(id)sender
+{
+    var card = [sender superview];
+    while (card && ![card isKindOfClass:[AlertCardView class]])
+    {
+        card = [card superview];
+    }
+    if (card)
+    {
+        [self applyCorrectionForCard:card];
+    }
+}
+
+- (void)returnFocusToEditor
+{
     [[_editorTextView window] makeFirstResponder:_editorTextView];
+}
+
+- (void)focusNextAlert:(id)sender
+{
+    var cards = [_sidebarDocumentView subviews];
+    if ([cards count] === 0) return;
+
+    var currentFirst = [[_editorTextView window] firstResponder];
+    var index = [cards indexOfObject:currentFirst];
+
+    if (index === CPNotFound)
+    {
+        [[_editorTextView window] makeFirstResponder:[cards objectAtIndex:0]];
+    }
+    else if (index < [cards count] - 1)
+    {
+        [[_editorTextView window] makeFirstResponder:[cards objectAtIndex:index + 1]];
+    }
+}
+
+- (void)focusPreviousAlert:(id)sender
+{
+    var cards = [_sidebarDocumentView subviews];
+    if ([cards count] === 0) return;
+
+    var currentFirst = [[_editorTextView window] firstResponder];
+    var index = [cards indexOfObject:currentFirst];
+
+    if (index === CPNotFound)
+    {
+        [[_editorTextView window] makeFirstResponder:[cards lastObject]];
+    }
+    else if (index > 0)
+    {
+        [[_editorTextView window] makeFirstResponder:[cards objectAtIndex:index - 1]];
+    }
 }
 
 - (void)textViewDidChangeSelection:(CPNotification)aNotification
@@ -1044,116 +1283,6 @@ var CorrectionAlertIdentifierAttributeName = @"CorrectionAlertIdentifierAttribut
             }
         }
     }
-}
-
-- (void)applyCorrectionAction:(id)sender
-{
-    var context = sender._representedObject;
-    var alert = context.alert;
-    var pIndex = context.paragraphIndex;
-
-    var docString = [_editorTextView string];
-    var pData = _paragraphsData[pIndex];
-    if (!pData) return;
-    
-    var pText = pData.text;
-    var absoluteParaOffset = [docString rangeOfString:pText].location;
-    if (absoluteParaOffset === CPNotFound) {
-        [_statusLabel setStringValue:@"Dokument-Kontext-Abweichung. Bitte erneut prüfen."];
-        return;
-    }
-
-    var absRange = CPMakeRange(absoluteParaOffset + alert.offset, alert.length);
-
-    [_editorTextView setSelectedRange:absRange];
-    [_editorTextView insertText:alert.suggested_text];
-
-    var lengthDelta = [alert.suggested_text length] - alert.length;
-    var alerts = pData.alerts;
-
-    for (var i = 0; i < alerts.length; i++) {
-        if (alerts[i].offset > alert.offset) {
-            alerts[i].offset += lengthDelta;
-        }
-    }
-
-    var originalLength = [pText length];
-    var preStr = [pText substringToIndex:alert.offset];
-    var postStr = [pText substringFromIndex:alert.offset + alert.length];
-    pData.text = preStr + alert.suggested_text + postStr;
-
-    [pData.alerts removeObject:alert];
-
-    [self renderHighlightsAndSidebar];
-    
-    // Focus and scroll corrected range
-    var newRange = CPMakeRange(absoluteParaOffset + alert.offset, [alert.suggested_text length]);
-    [_editorTextView scrollRangeToVisible:newRange];
-
-    [_statusLabel setStringValue:@"Einzelnes Datum wurde erfolgreich geschützt."];
-}
-
-// --- KOMPLETTE ANONYMISIERUNG DES DOKUMENTS ---
-
-- (void)anonymizeDocumentAll:(id)sender
-{
-    var docString = [_editorTextView string];
-    var allAlerts = [];
-
-    // Sammelt alle erkannten Alerts mit absoluten Positionen
-    for (var i = 0; i < _paragraphsData.length; i++) {
-        var pData = _paragraphsData[i];
-        if (!pData || !pData.completed) {
-            continue;
-        }
-        var pText = pData.text;
-        var absoluteParaOffset = [docString rangeOfString:pText].location;
-        if (absoluteParaOffset === CPNotFound) {
-            continue;
-        }
-
-        var alerts = pData.alerts;
-        for (var j = 0; j < alerts.length; j++) {
-            var alert = alerts[j];
-            allAlerts.push({
-                "absOffset": absoluteParaOffset + alert.offset,
-                "length": alert.length,
-                "suggested": alert.suggested_text
-            });
-        }
-    }
-
-    if (allAlerts.length === 0) {
-        [_statusLabel setStringValue:@"Keine zu anonymisierenden Daten gefunden."];
-        return;
-    }
-
-    // Sortieren von hinten nach vorne (absteigend nach Offset),
-    // um die Verschiebung von Zeichen-Indizes im vorderen Textbereich zu verhindern
-    allAlerts.sort(function(a, b) {
-        return b.absOffset - a.absOffset;
-    });
-
-    // Ersetzungen durchführen
-    for (var k = 0; k < allAlerts.length; k++) {
-        var item = allAlerts[k];
-        var range = CPMakeRange(item.absOffset, item.length);
-        [_editorTextView setSelectedRange:range];
-        [_editorTextView insertText:item.suggested];
-    }
-
-    // Arbeitsdaten zurücksetzen, da das Dokument nun verändert und sauber ist
-    _paragraphsData = [];
-    [_alertCardsMap removeAllObjects];
-    _currentHighlightedCard = nil;
-
-    var textStorage = [_editorTextView textStorage];
-    var completeDocRange = CPMakeRange(0, [[_editorTextView string] length]);
-    [textStorage removeAttribute:CPBackgroundColorAttributeName range:completeDocRange];
-    [textStorage removeAttribute:CorrectionAlertIdentifierAttributeName range:completeDocRange];
-    [[_sidebarDocumentView subviews] makeObjectsPerformSelector:@selector(removeFromSuperview)];
-
-    [_statusLabel setStringValue:@"Dokument wurde komplett anonymisiert."];
 }
 
 @end
