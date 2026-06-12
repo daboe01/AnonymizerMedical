@@ -12,6 +12,9 @@ The application operates as a **serverless, browser-only application**. It runs 
 > ### ⚠️ Critical Disclaimer & Privacy Notice
 > 1. **100% User Responsibility**: This software is an assistant tool. Natural Language Processing (NLP) and Large Language Models (LLMs) are subject to hallucinations, omissions, and errors. The user bears **100% of the responsibility** for ensuring that all protected health information is thoroughly and correctly redacted before any document is shared. Manual verification of every output is mandatory.
 > 2. **On-Premises Infrastructure Only**: When dealing with real, sensitive, or protected patient data, **only on-premises (local) LLM integrations (such as Ollama running on a secure local network/localhost) should be used**. Sending patient-identifiable medical records to external cloud APIs (such as Google, Groq, or OpenRouter) without appropriate data processing agreements is a severe breach of patient confidentiality and strict medical privacy laws (including GDPR and HIPAA).
+> 3. **Educational Purpose & Production Limitations**: This application is intended **strictly for educational and demonstration purposes**. It is not designed to be a standalone production-grade clinical anonymization solution. A production-ready architecture requires advanced safeguarding mechanisms that are absent here, specifically:
+>    * **Document Chunking**: A robust pre-processing pipeline to split long, complex medical reports into overlapping segments, ensuring the LLM does not lose context, drop critical entities, or exceed context window limits.
+>    * **Backend Safety-Net Harness**: A multi-layered validation backend combining deterministic rule-based algorithms (e.g., regex, lookup dictionaries) and lightweight Named Entity Recognition (NER) models to act as a fail-safe harness, catching any leakage or hallucinations missed by the primary generative model.
 
 ---
 
