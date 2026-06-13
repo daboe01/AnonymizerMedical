@@ -27,11 +27,11 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     if (context)
     {
         var alert = context.alert;
-        var strongBorderColor = [CPColor colorWithRed:0.90 green:0.1 blue:0.1 alpha:1.0]; // Rot für Patient
+        var strongBorderColor = [CPColor colorWithRed:0.90 green:0.1 blue:0.1 alpha:1.0]; // Red for Patient
         if (alert.category === @"staff") {
-            strongBorderColor = [CPColor colorWithRed:0.10 green:0.70 blue:0.10 alpha:1.0]; // Grün für Arzt
+            strongBorderColor = [CPColor colorWithRed:0.10 green:0.70 blue:0.10 alpha:1.0]; // Green for Medical Staff
         } else if (alert.category === @"clinic") {
-            strongBorderColor = [CPColor colorWithRed:0.10 green:0.40 blue:0.90 alpha:1.0]; // Blau für Klinik
+            strongBorderColor = [CPColor colorWithRed:0.10 green:0.40 blue:0.90 alpha:1.0]; // Blue for Clinic/Hospital
         }
 
         [self setBorderWidth:2.5];
@@ -171,10 +171,12 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 {
     // --- PERSISTENT USER DEFAULTS INITIALIZATION ---
     var defaults = [CPUserDefaults standardUserDefaults];
+    var isFirstLaunch = ([defaults objectForKey:@"ServiceType"] === nil);
+
     var defaultSettings = [CPDictionary dictionaryWithObjects:[
         @"http://localhost:11434/api/generate",
         @"gemma4:e4b",
-        @"openrouter",
+        @"openrouter", // Default fallback
         @"",
         @"llama-3.1-8b-instant",
         @"",
@@ -200,26 +202,26 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
        [mainMenu removeItemAtIndex:0];
 
     // AI Assistant Menu
-    var appItem = [mainMenu insertItemWithTitle:@"Klinischer Assistent" action:nil keyEquivalent:nil atIndex:0];
-    var appMenu = [[CPMenu alloc] initWithTitle:@"Klinischer Assistent"];
-    [appMenu addItemWithTitle:@"Einstellungen..." action:@selector(openSettingsSheet:) keyEquivalent:@","];
+    var appItem = [mainMenu insertItemWithTitle:@"Clinical Assistant" action:nil keyEquivalent:nil atIndex:0];
+    var appMenu = [[CPMenu alloc] initWithTitle:@"Clinical Assistant"];
+    [appMenu addItemWithTitle:@"Settings..." action:@selector(openSettingsSheet:) keyEquivalent:@","];
     
     // VS Code Style Error Keys (F2 / Shift + F2)
-    var nextF2 = [appMenu addItemWithTitle:@"Nächster Schutzbereich (F2)" action:@selector(focusNextAlert:) keyEquivalent:CPF2FunctionKey];
-    var prevF2 = [appMenu addItemWithTitle:@"Vorheriger Schutzbereich (Shift+F2)" action:@selector(focusPreviousAlert:) keyEquivalent:CPF2FunctionKey];
+    var nextF2 = [appMenu addItemWithTitle:@"Next Protected Area (F2)" action:@selector(focusNextAlert:) keyEquivalent:CPF2FunctionKey];
+    var prevF2 = [appMenu addItemWithTitle:@"Previous Protected Area (Shift+F2)" action:@selector(focusPreviousAlert:) keyEquivalent:CPF2FunctionKey];
     [prevF2 setKeyEquivalentModifierMask:CPShiftKeyMask];
     
     // IntelliJ Style Error Keys (F8 / Shift + F8)
-    var nextF8 = [appMenu addItemWithTitle:@"Nächster Schutzbereich (F8)" action:@selector(focusNextAlert:) keyEquivalent:CPF8FunctionKey];
-    var prevF8 = [appMenu addItemWithTitle:@"Vorheriger Schutzbereich (Shift+F8)" action:@selector(focusPreviousAlert:) keyEquivalent:CPF8FunctionKey];
+    var nextF8 = [appMenu addItemWithTitle:@"Next Protected Area (F8)" action:@selector(focusNextAlert:) keyEquivalent:CPF8FunctionKey];
+    var prevF8 = [appMenu addItemWithTitle:@"Previous Protected Area (Shift+F8)" action:@selector(focusPreviousAlert:) keyEquivalent:CPF8FunctionKey];
     [prevF8 setKeyEquivalentModifierMask:CPShiftKeyMask];
 
     // MS Word Style Error Keys (Alt + F7)
-    var wordStyleItem = [appMenu addItemWithTitle:@"Nächster Schutzbereich (Word)" action:@selector(focusNextAlert:) keyEquivalent:CPF7FunctionKey];
+    var wordStyleItem = [appMenu addItemWithTitle:@"Next Protected Area (Word)" action:@selector(focusNextAlert:) keyEquivalent:CPF7FunctionKey];
     [wordStyleItem setKeyEquivalentModifierMask:CPAlternateKeyMask];
 
     // IntelliJ Style "Quick Fix" (Alt + Enter / Alt + Return)
-    var quickFixItem = [appMenu addItemWithTitle:@"Schnellanonymisierung" action:@selector(applyActiveCorrectionFromMenu:) keyEquivalent:CPCarriageReturnCharacter];
+    var quickFixItem = [appMenu addItemWithTitle:@"Quick Anonymization" action:@selector(applyActiveCorrectionFromMenu:) keyEquivalent:CPCarriageReturnCharacter];
     [quickFixItem setKeyEquivalentModifierMask:CPAlternateKeyMask];
 
     [mainMenu setSubmenu:appMenu forItem:appItem];
@@ -227,14 +229,14 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     // Format Menu with Font Panel
     var formatItem = [mainMenu insertItemWithTitle:@"Format" action:nil keyEquivalent:nil atIndex:1];
     var formatMenu = [[CPMenu alloc] initWithTitle:@"Format"];
-    [formatMenu addItemWithTitle:@"Schriftarten" action:@selector(orderFrontFontPanel:) keyEquivalent:@"t"];
+    [formatMenu addItemWithTitle:@"Fonts" action:@selector(orderFrontFontPanel:) keyEquivalent:@"t"];
     [mainMenu setSubmenu:formatMenu forItem:formatItem];
     [CPMenu setMenuBarVisible:YES];
 
     _alertCardsMap = [CPDictionary dictionary];
 
     var theWindow = [[CPWindow alloc] initWithContentRect:CGRectMake(0, 0, 1150, 750) styleMask:CPBorderlessBridgeWindowMask];
-    [theWindow setTitle:@"Klinischer Anonymisierungs- & Annotations-Assistent"];
+    [theWindow setTitle:@"Clinical Anonymization & Annotation Assistant"];
     [theWindow center];
 
     var contentView = [theWindow contentView];
@@ -248,14 +250,14 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
     // Check Button
     _analyzeButton = [[CPButton alloc] initWithFrame:CGRectMake(15, 12, 130, 26)];
-    [_analyzeButton setTitle:@"Dokument prüfen"];
+    [_analyzeButton setTitle:@"Analyze Document"];
     [_analyzeButton setTarget:self];
     [_analyzeButton setAction:@selector(analyzeDocument:)];
     [topBar addSubview:_analyzeButton];
 
     // Anonymize All Button
     _anonymizeButton = [[CPButton alloc] initWithFrame:CGRectMake(155, 12, 175, 26)];
-    [_anonymizeButton setTitle:@"Komplett anonymisieren"];
+    [_anonymizeButton setTitle:@"Anonymize All"];
     [_anonymizeButton setTarget:self];
     [_anonymizeButton setAction:@selector(anonymizeDocumentAll:)];
     [topBar addSubview:_anonymizeButton];
@@ -276,7 +278,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
     // Status Label
     _statusLabel = [[CPTextField alloc] initWithFrame:CGRectMake(610, 15, 525, 20)];
-    [_statusLabel setStringValue:@"Klinischen Text einfügen und Prüfung starten."];
+    [_statusLabel setStringValue:@"Paste clinical text and start analysis."];
     [_statusLabel setFont:[CPFont systemFontOfSize:12]];
     [_statusLabel setAutoresizingMask:CPViewWidthSizable];
     [topBar addSubview:_statusLabel];
@@ -286,7 +288,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     var splitView = [[CPSplitView alloc] initWithFrame:CGRectMake(0, 50, CGRectGetWidth(bounds), splitHeight)];
     [splitView setAutoresizingMask:CPViewWidthSizable | CPViewHeightSizable];
     [splitView setVertical:YES];
-    [splitView setDelegate:self]; // Ermöglicht das Abfangen von Resizing-Events
+    [splitView setDelegate:self];
 
     var dividerWidth = [splitView dividerThickness];
     var leftWidth = (CGRectGetWidth([splitView bounds]) - dividerWidth) * 0.65;
@@ -329,8 +331,48 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     [contentView addSubview:splitView];
     [theWindow orderFront:self];
 
-    // Sample initial clinical text block
-    [_editorTextView setString:@"St. Gertrauden-Krankenhaus\nAbteilung für Kardiologie\nMusterstraße 1, 50005 Köln\n\nAnmeldung zur ambulanten Kontrolluntersuchung\n\nPatient: Max Mustermann, geb. 12.03.1956\nAnschrift: Hauptstraße 1, 50067 Köln\n\nSehr geehrte Kolleginnen und Kollegen,\n\nwir berichten über den oben genannten Patienten, der sich am 04.06.2026 in unserer kardiologischen Ambulanz vorstellte. Die Untersuchung wurde von Frau Dr. med. Anna Schreiber durchgeführt.\n\nMit freundlichen Grüßen,\nDr. med. Anna Schreiber\nOberärztin Kardiologie"];
+    // Typical US-Style Initial Clinical Text Block
+    [_editorTextView setString:@"Sone Hospital\nDepartment of Cardiology\n100 Some Street, New York, NY 10000\n\nReferral for Outpatient Cardiology Evaluation\n\nPatient: John Smith, DOB: 05/14/1965\nAddress: 450 West 11nd Street, New York, NY 1001\n\nDear Colleagues,\n\nWe are writing to report on the above-named patient, who was evaluated in our cardiology clinic on 06/04/2026. The comprehensive evaluation was performed by Dr. Sarah Jenkins, MD.\n\nSincerely,\nDr. Sarah Perkeo, MD\nDirector of Clinical Cardiology"];
+
+    // --- GEMINI NANO DETECTOR & DYNAMIC SETUP ON FIRST LAUNCH ---
+    if (isFirstLaunch) {
+        var checkPromise = null;
+
+        if (typeof LanguageModel !== "undefined" && typeof LanguageModel.availability === "function") {
+            checkPromise = LanguageModel.availability();
+        } else if (typeof ai !== "undefined" && ai.languageModel) {
+            if (typeof ai.languageModel.availability === "function") {
+                checkPromise = ai.languageModel.availability();
+            } else if (typeof ai.languageModel.capabilities === "function") {
+                checkPromise = ai.languageModel.capabilities().then(function(cap) { return cap.available; });
+            }
+        }
+
+        if (checkPromise) {
+            checkPromise.then(function(status) {
+                if (status === "available" || status === "readily" || status === "after-download" || status === "downloadable") {
+                    [defaults setObject:@"gemini-nano" forKey:@"ServiceType"];
+                    [_statusLabel setStringValue:@"Chrome Gemini Nano detected! Automatically configured as the default service."];
+                } else {
+                    [_statusLabel setStringValue:@"Paste clinical text. (Gemini Nano is available but not ready. OpenRouter active)."];
+                }
+            })
+            .catch(function(err) {
+                [_statusLabel setStringValue:@"Paste clinical text. (Gemini Nano detection error. OpenRouter active)."];
+            });
+        } else {
+            [_statusLabel setStringValue:@"Paste clinical text. (Note: Gemini Nano On-Device AI is not available in this browser)."];
+        }
+    } else {
+        var activeService = [defaults objectForKey:@"ServiceType"];
+        if (activeService === @"gemini-nano") {
+            if (typeof LanguageModel === "undefined" && (typeof ai === "undefined" || typeof ai.languageModel === "undefined")) {
+                [_statusLabel setStringValue:@"Warning: Gemini Nano is configured, but currently unavailable in your browser!"];
+            } else {
+                [_statusLabel setStringValue:@"Active: On-Device Gemini Nano. Paste text and start analysis."];
+            }
+        }
+    }
 }
 
 // Helper method to safely access cards in vertical visual layout order
@@ -387,7 +429,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
         // Description Info
         var infoLabel = [[CPTextField alloc] initWithFrame:CGRectMake(15, 15, CGRectGetWidth(sheetBounds) - 30, 40)];
-        [infoLabel setStringValue:@"Konfigurieren Sie Ihre LLM-Integration (Ollama, Groq, Gemini oder OpenRouter)."];
+        [infoLabel setStringValue:@"Configure your LLM integration (Gemini Nano, Ollama, Groq, Gemini, or OpenRouter)."];
         [infoLabel setFont:[CPFont systemFontOfSize:11.0]];
         [infoLabel setTextColor:[CPColor colorWithWhite:0.3 alpha:1.0]];
         [infoLabel setLineBreakMode:CPLineBreakByWordWrapping];
@@ -395,14 +437,16 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
         // Service Type
         var serviceLabel = [[CPTextField alloc] initWithFrame:CGRectMake(15, 60, 110, 20)];
-        [serviceLabel setStringValue:@"Diensttyp:"];
+        [serviceLabel setStringValue:@"Service Type:"];
         [serviceLabel setFont:[CPFont systemFontOfSize:12.0]];
         [serviceLabel setAlignment:CPRightTextAlignment];
         [sheetContentView addSubview:serviceLabel];
 
-        _servicePopUp = [[CPPopUpButton alloc] initWithFrame:CGRectMake(135, 57, 150, 26) pullsDown:NO];
+        _servicePopUp = [[CPPopUpButton alloc] initWithFrame:CGRectMake(135, 57, 210, 26) pullsDown:NO];
         [_servicePopUp addItemWithTitle:@"Ollama"];
         [[_servicePopUp lastItem] setRepresentedObject:@"ollama"];
+        [_servicePopUp addItemWithTitle:@"Google Gemini Nano (On-Device)"];
+        [[_servicePopUp lastItem] setRepresentedObject:@"gemini-nano"];
         [_servicePopUp addItemWithTitle:@"Groq API"];
         [[_servicePopUp lastItem] setRepresentedObject:@"groq"];
         [_servicePopUp addItemWithTitle:@"Google Gemini"];
@@ -415,7 +459,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
         // Endpoint Target URL
         var endpointLabel = [[CPTextField alloc] initWithFrame:CGRectMake(15, 95, 110, 20)];
-        [endpointLabel setStringValue:@"Ollama API URL:"];
+        [endpointLabel setStringValue:@"API URL:"];
         [endpointLabel setFont:[CPFont systemFontOfSize:12.0]];
         [endpointLabel setAlignment:CPRightTextAlignment];
         [sheetContentView addSubview:endpointLabel];
@@ -428,7 +472,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
         // Model String Selector
         var modelLabel = [[CPTextField alloc] initWithFrame:CGRectMake(15, 130, 110, 20)];
-        [modelLabel setStringValue:@"Modellname:"];
+        [modelLabel setStringValue:@"Model Name:"];
         [modelLabel setFont:[CPFont systemFontOfSize:12.0]];
         [modelLabel setAlignment:CPRightTextAlignment];
         [sheetContentView addSubview:modelLabel];
@@ -456,19 +500,19 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
         var btnY = CGRectGetHeight(sheetBounds) - 45;
 
         var cancelBtn = [[CPButton alloc] initWithFrame:CGRectMake(CGRectGetWidth(sheetBounds) - 205, btnY, 90, 26)];
-        [cancelBtn setTitle:@"Abbrechen"];
+        [cancelBtn setTitle:@"Cancel"];
         [cancelBtn setTarget:self];
         [cancelBtn setAction:@selector(closeSettingsSheet:)];
         [sheetContentView addSubview:cancelBtn];
 
         var saveBtn = [[CPButton alloc] initWithFrame:CGRectMake(CGRectGetWidth(sheetBounds) - 105, btnY, 90, 26)];
-        [saveBtn setTitle:@"Speichern"];
+        [saveBtn setTitle:@"Save"];
         [saveBtn setTarget:self];
         [saveBtn setAction:@selector(saveSettings:)];
         [sheetContentView addSubview:saveBtn];
     }
 
-    [_settingsWindow setTitle:@"KI-Dienst Konfiguration"];
+    [_settingsWindow setTitle:@"AI Service Configuration"];
     
     var defaults = [CPUserDefaults standardUserDefaults];
     var activeService = [defaults objectForKey:@"ServiceType"] || @"ollama";
@@ -485,9 +529,10 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     _tempOpenRouterModel = [defaults objectForKey:@"OpenRouterModel"] || @"openai/gpt-4o";
 
     if (activeService === @"ollama") [_servicePopUp selectItemAtIndex:0];
-    else if (activeService === @"groq") [_servicePopUp selectItemAtIndex:1];
-    else if (activeService === @"gemini") [_servicePopUp selectItemAtIndex:2];
-    else if (activeService === @"openrouter") [_servicePopUp selectItemAtIndex:3];
+    else if (activeService === @"gemini-nano") [_servicePopUp selectItemAtIndex:1];
+    else if (activeService === @"groq") [_servicePopUp selectItemAtIndex:2];
+    else if (activeService === @"gemini") [_servicePopUp selectItemAtIndex:3];
+    else if (activeService === @"openrouter") [_servicePopUp selectItemAtIndex:4];
 
     [self updateFieldsForService:activeService];
 
@@ -503,16 +548,27 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     if (serviceType === @"ollama") {
         [_endpointField setEnabled:YES];
         [_endpointField setStringValue:_tempOllamaEndpoint];
+        [_modelField setEnabled:YES];
         [_modelField setStringValue:_tempOllamaModel];
         [_apiKeyField setEnabled:NO];
         [_apiKeyField setStringValue:@""];
-        [_apiKeyField setPlaceholderString:@"Nicht erforderlich für Ollama"];
+        [_apiKeyField setPlaceholderString:@"Not required for Ollama"];
+    } else if (serviceType === @"gemini-nano") {
+        [_endpointField setEnabled:NO];
+        [_endpointField setStringValue:@""];
+        [_endpointField setPlaceholderString:@"On-Device (No Endpoint)"];
+        [_modelField setEnabled:NO];
+        [_modelField setStringValue:@"Gemini Nano (Local)"];
+        [_apiKeyField setEnabled:NO];
+        [_apiKeyField setStringValue:@""];
+        [_apiKeyField setPlaceholderString:@"On-Device (No API Key)"];
     } else {
         [_endpointField setEnabled:NO];
         [_endpointField setStringValue:@""];
-        [_endpointField setPlaceholderString:@"Konstanter Endpunkt"];
+        [_endpointField setPlaceholderString:@"Constant Endpoint"];
+        [_modelField setEnabled:YES];
         [_apiKeyField setEnabled:YES];
-        [_apiKeyField setPlaceholderString:@"API Key eingeben"];
+        [_apiKeyField setPlaceholderString:@"Enter API Key"];
         
         if (serviceType === @"groq") {
             [_modelField setStringValue:_tempGroqModel];
@@ -587,7 +643,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     [defaults setObject:_tempOpenRouterAPIKey forKey:@"OpenRouterAPIKey"];
     
     [self closeSettingsSheet:sender];
-    [_statusLabel setStringValue:@"KI-Konfiguration aktualisiert und gespeichert."];
+    [_statusLabel setStringValue:@"AI configuration updated and saved."];
 }
 
 // --- UNIFIED IMPORT & EXPORT SESSION DATA ---
@@ -604,7 +660,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
         // Description Label
         var infoLabel = [[CPTextField alloc] initWithFrame:CGRectMake(15, 10, CGRectGetWidth(sheetBounds) - 30, 45)];
-        [infoLabel setStringValue:@"Zum Exportieren kopieren Sie den JSON-Block. Zum Importieren ersetzen Sie den Inhalt unten und klicken Sie auf \"Importieren\"."];
+        [infoLabel setStringValue:@"To export, copy the JSON block below. To import, replace the content and click \"Import JSON\"."];
         [infoLabel setFont:[CPFont systemFontOfSize:11.0]];
         [infoLabel setTextColor:[CPColor colorWithWhite:0.3 alpha:1.0]];
         [infoLabel setLineBreakMode:CPLineBreakByWordWrapping];
@@ -627,7 +683,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
         var btnY = CGRectGetHeight(sheetBounds) - 50;
 
         var cancelBtn = [[CPButton alloc] initWithFrame:CGRectMake(CGRectGetWidth(sheetBounds) - 235, btnY, 110, 26)];
-        [cancelBtn setTitle:@"Abbrechen"];
+        [cancelBtn setTitle:@"Cancel"];
         [cancelBtn setAutoresizingMask:CPViewMinXMargin | CPViewMinYMargin];
         [cancelBtn setTarget:self];
         [cancelBtn setAction:@selector(closeSheet:)];
@@ -641,7 +697,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
         [sheetContentView addSubview:actionBtn];
     }
 
-    [_sheetWindow setTitle:@"Transfer-Session (JSON)"];
+    [_sheetWindow setTitle:@"Transfer Session (JSON)"];
     [_sheetTextView setEditable:YES];
 
     // Assemble document structure and validation response mapping into transfer JSON
@@ -688,58 +744,131 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
                 // Render highlighting and populate sidebar container directly
                 [self renderHighlightsAndSidebar];
-                [_statusLabel setStringValue:@"Sitzungsdaten erfolgreich geladen."];
+                [_statusLabel setStringValue:@"Session data successfully loaded."];
             } else {
-                [_statusLabel setStringValue:@"Fehler beim Laden: Ungültige Datenstruktur."];
+                [_statusLabel setStringValue:@"Load error: Invalid data structure."];
             }
         } catch (e) {
-            [_statusLabel setStringValue:@"Strukturelle JSON-Analyse fehlgeschlagen."];
+            [_statusLabel setStringValue:@"Structural JSON parsing failed."];
             CPLog.error(@"JSON Parsing Exception: " + e.message);
         }
     }
     [self closeSheet:sender];
 }
 
-// --- PROMPTS FOR THE AI SERVICES (BROUGHT TO FRONTEND) ---
+// --- SYSTEM & USER PROMPTS DESIGNED FOR DEEP INTEGRATION WITH LOCAL GEMINI NANO ---
 
+- (CPString)systemPromptForLanguage:(CPString)langCode
+{
+    var lines = [
+        "You are a clinical privacy assistant. Your sole job is to identify patient details, hospital staff, and clinic facilities in medical text.",
+        "Return your results as a flat JSON array inside an \"alerts\" field, adhering to this classification scheme:",
+        "- \"patient\": Sensitive patient details (names, dates of birth, contact details, ID numbers).",
+        "- \"staff\": Clinical personnel (doctors, nurses, therapists, medical personnel).",
+        "- \"clinic\": Facility references (hospitals, practices, departments, addresses).",
+        "",
+        "Rules:",
+        "1. The \"original_text\" property MUST be an exact character-by-character substring of the provided text.",
+        "2. Do not include markdown wraps or explanations.",
+        "",
+        "Example input: \"Patient John Smith was admitted to Sone Hospital by Dr. Sarah Jenkins.\"",
+        "Example output JSON:",
+        "{\"alerts\": [",
+        "  {\"category\": \"patient\", \"original_text\": \"John Smith\"},",
+        "  {\"category\": \"clinic\", \"original_text\": \"Sone Hospital\"},",
+        "  {\"category\": \"staff\", \"original_text\": \"Dr. Sarah Jenkins\"}",
+        "]}"
+    ];
+    return lines.join("\n");
+}
+
+- (CPString)userPromptForText:(CPString)pText
+{
+    return "Analyze the following clinical text and extract the sensitive entities:\n\n" + pText;
+}
+
+// Unified, clean schema configuration that is optimal for smaller Ollama/Groq models as well
 - (CPString)promptForLanguage:(CPString)langCode text:(CPString)pText
 {
     var lines = [
-        "Sie sind ein klinischer Datenschutz-Assistent zur Anonymisierung von Patientenunterlagen und Arztbriefen.",
-        "Analysieren Sie den bereitgestellten Textabschnitt auf sensible, personenbezogene Daten und kategorisieren Sie diese exakt in folgende drei Gruppen:",
+        "You are a clinical privacy assistant tasked with identifying personally identifiable information (PII) and facility details in patient records [2.4.5].",
+        "Analyze the provided text paragraph and identify all occurrences of entities belonging to these three categories:",
         "",
-        "1. \"patient\": Daten, die den Patienten direkt oder indirekt identifizieren.",
-        "   Dazu gehören: Patienten-Namen (z.B. Max Mustermann), Geburtsdaten (z.B. 12.03.1956), Anschriften (z.B. Hauptstraße 45, Köln), Telefonnummern, Versicherungsnummern, Patienten-IDs.",
-        "   Der vorgeschlagene Text (suggested_text) muss IMMER genau \"[PATIENT]\" lauten.",
+        "1. \"patient\": Patient names (e.g., John Smith), dates of birth (e.g., 05/14/1965), home addresses (e.g., 450 West 11nd Street, New York, NY 1001), phone numbers, insurance IDs, or patient record numbers.",
+        "2. \"staff\": Names of clinical personnel (e.g., Dr. Sarah Jenkins, MD, Dr. Jenkins, Nurse Roberts).",
+        "3. \"clinic\": Hospital/facility names (e.g., Sone Hospital), department names (e.g., Department of Cardiology), ward names, and facility addresses.",
         "",
-        "2. \"staff\": Daten, die behandelnde Ärzte, Ärztinnen, Pflegekräfte, Therapeuten oder sonstiges klinisches Personal identifizieren.",
-        "   Dazu gehören: Namen von Ärzten und medizinischem Personal (z.B. Frau Dr. med. Anna Schreiber, Dr. Schreiber, OA Dr. Meier).",
-        "   Der vorgeschlagene Text (suggested_text) muss IMMER genau \"[MED_MITARBEITER]\" lauten.",
+        "CRITICAL INSTRUCTIONS:",
+        "- Output your findings STRICTLY as a raw JSON array of objects. Do not wrap in ```json markers. Do not append conversational text.",
+        "- Ensure the \"original_text\" value matches the exact substring in the paragraph character-for-character.",
         "",
-        "3. \"clinic\": Daten, die das behandelnde Krankenhaus, die Klinik, Abteilung oder die Arztpraxis identifizieren.",
-        "   Dazu gehören: Krankenhausnamen (z.B. St. Elisabeth-Krankenhaus), Praxis-Namen, Abteilungen (z.B. Abteilung für Kardiologie), Stationen (z.B. Station 4B) sowie deren Adressen.",
-        "   Der vorgeschlagene Text (suggested_text) muss IMMER genau \"[KLINIK]\" lauten.",
-        "",
-        "WICHTIGE ANWEISUNGEN:",
-        "- Das Feld \"original_text\" muss exakt dem fehlerhaften/zu anonymisierenden Text aus dem bereitgestellten Absatz entsprechen.",
-        "- Geben Sie AUSSCHLIESSLICH gültiges, reines JSON aus, das ein flaches Array von Objekten gemäß dem unten stehenden Schema enthält.",
-        "- Verwenden Sie keine Markdown-Code-Blöcke (wie ```json) und fügen Sie keinen zusätzlichen Floskeltext hinzu.",
-        "",
-        "JSON-Schema für das Ausgabeformat:",
+        "JSON output format schema:",
         "[",
         "  {",
         "    \"category\": \"patient\" | \"staff\" | \"clinic\",",
-        "    \"title\": \"Kurze Bezeichnung (z.B. Patientendaten / Klinische Mitarbeiter / Krankenhaus)\",",
-        "    \"original_text\": \"exakter_originaler_text_aus_dem_dokument\",",
-        "    \"suggested_text\": \"[PATIENT]\" | \"[MED_MITARBEITER]\" | \"[KLINIK]\",",
-        "    \"explanation\": \"Erklärung, warum diese Entität geschützt werden muss (z.B. Name des Patienten).\"",
+        "    \"original_text\": \"exact_original_text_from_the_document\"",
         "  }",
         "]",
         "",
-        "Hier ist der zu prüfende klinische Text:",
+        "Few-Shot Example:",
+        "Input paragraph: \"Patient John Smith was evaluated in our clinic at Sone Hospital by Dr. Sarah Jenkins.\"",
+        "Expected Output:",
+        "[",
+        "  {\"category\": \"patient\", \"original_text\": \"John Smith\"},",
+        "  {\"category\": \"clinic\", \"original_text\": \"Sone Hospital\"},",
+        "  {\"category\": \"staff\", \"original_text\": \"Dr. Sarah Jenkins\"}",
+        "]",
+        "",
+        "Analyze the clinical text paragraph below:",
         pText
     ];
     return lines.join("\n");
+}
+
+// Unified frontend processing block to programmatically construct consistent, rich card metadata
+- (CPArray)processRawAlerts:(id)rawAlerts forText:(CPString)pText paragraphIndex:(int)pIndex
+{
+    var processedAlerts = [];
+    var id_counter = 0;
+
+    for (var i = 0; i < rawAlerts.length; i++) {
+        var alert = rawAlerts[i];
+        var orig = alert.original_text;
+        if (!orig || orig === "") continue;
+
+        var offset = pText.indexOf(orig);
+        if (offset === -1) {
+            offset = pText.toLowerCase().indexOf(orig.toLowerCase());
+        }
+
+        if (offset !== -1) {
+            alert.offset = offset;
+            alert.length = orig.length;
+            alert.id = "alert_" + pIndex + "_" + id_counter++;
+
+            // Enrich programmatic parameters so we do not force local models to spend generation tokens on formatting
+            if (alert.category === "patient") {
+                alert.suggested_text = "[PATIENT]";
+                alert.title = "Patient Information";
+                alert.explanation = "Sensitive patient identifier (name, DOB, address, or ID) that must be protected.";
+            } else if (alert.category === "staff") {
+                alert.suggested_text = "[MED_STAFF]";
+                alert.title = "Clinical Staff";
+                alert.explanation = "Physician, specialist, nurse, or clinical professional name.";
+            } else if (alert.category === "clinic") {
+                alert.suggested_text = "[CLINIC]";
+                alert.title = "Hospital / Clinic";
+                alert.explanation = "Treating facility, hospital, department, or clinical practice.";
+            } else {
+                alert.suggested_text = alert.suggested_text || "[REDACTED]";
+                alert.title = alert.title || "Sensitive Entity";
+                alert.explanation = alert.explanation || "Identified sensitive data point.";
+            }
+
+            processedAlerts.push(alert);
+        }
+    }
+    return processedAlerts;
 }
 
 // --- PROGRESSIVE DOCUMENT ANALYSIS ---
@@ -748,11 +877,11 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 {
     var documentText = [_editorTextView string];
     if (!documentText || [documentText length] === 0) {
-        [_statusLabel setStringValue:@"Bitte geben Sie Text ein, bevor Sie die Prüfung starten."];
+        [_statusLabel setStringValue:@"Please enter text before starting the analysis."];
         return;
     }
 
-    // Splittet bei doppelten Zeilenumbrüchen ODER bei einem Punkt, gefolgt von einem Zeilenumbruch und einem Großbuchstaben
+    // Split paragraphs on double linebreaks or on a period followed by a newline and an uppercase letter
     var paragraphs = documentText.split(/(?:\r?\n\r?\n+)|(?<=\.)\r?\n(?=\p{Lu})/u);
     _totalParagraphs = paragraphs.length;
     _completedParagraphs = 0;
@@ -778,16 +907,16 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     [_analyzeButton setEnabled:NO];
     [_anonymizeButton setEnabled:NO];
     [_transferButton setEnabled:NO];
-    [_statusLabel setStringValue:@"Klinische Dokumentenprüfung läuft... Fortschritt: 0%"];
+    [_statusLabel setStringValue:@"Analyzing clinical document... Progress: 0%"];
 
     for (var i = 0; i < _totalParagraphs; i++) {
-        [self analyzeParagraph:paragraphs[i] index:i langCode:@"de"];
+        [self analyzeParagraph:paragraphs[i] index:i langCode:@"en"];
     }
 }
 
 - (void)analyzeParagraph:(CPString)pText index:(int)pIndex langCode:(CPString)langCode
 {
-    // Ignoriere Absätze mit weniger als 2 Wörtern (z.B. bloße Umbrüche)
+    // Ignore paragraphs containing less than 2 words (e.g., blank lines)
     var words = pText.split(/\s+/);
     if (words.length <= 1) {
         var emptyResult = {
@@ -799,10 +928,129 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
         return;
     }
 
-    var fullPrompt = [self promptForLanguage:langCode text:pText];
-
     var defaults = [CPUserDefaults standardUserDefaults];
     var serviceType = [defaults objectForKey:@"ServiceType"] || @"ollama";
+    
+    var selfRef = self;
+
+    // --- SERVICE ROUTING: LOCAL NATIVE ON-DEVICE GEMINI NANO ---
+    if (serviceType === @"gemini-nano") {
+        var systemPromptText = [self systemPromptForLanguage:langCode];
+        var userPromptText = [self userPromptForText:pText];
+
+        // Safe wrappers that gracefully cross-navigate the standards and legacy APIs
+        var checkAvailability = function() {
+            if (typeof LanguageModel !== "undefined" && typeof LanguageModel.availability === "function") {
+                return LanguageModel.availability({ languages: [langCode] });
+            }
+            if (typeof ai !== "undefined" && ai.languageModel) {
+                if (typeof ai.languageModel.availability === "function") {
+                    return ai.languageModel.availability({ languages: [langCode] });
+                }
+                if (typeof ai.languageModel.capabilities === "function") {
+                    return ai.languageModel.capabilities().then(function(cap) { return cap.available; });
+                }
+            }
+            return Promise.reject(new Error("Prompt API interfaces not found."));
+        };
+
+        var createSession = function(options) {
+            if (typeof LanguageModel !== "undefined" && typeof LanguageModel.create === "function") {
+                return LanguageModel.create(options);
+            }
+            if (typeof ai !== "undefined" && ai.languageModel && typeof ai.languageModel.create === "function") {
+                return ai.languageModel.create(options);
+            }
+            return Promise.reject(new Error("Unable to create session."));
+        };
+
+        checkAvailability()
+        .then(function(status) {
+            if (status === "no" || status === "unavailable") {
+                throw new Error("Gemini Nano is unavailable.");
+            }
+            // Create session with optimal parameters using systemPrompt
+            return createSession({
+                systemPrompt: systemPromptText,
+                temperature: 0.0,
+                topK: 1
+            });
+        })
+        .then(function(session) {
+            // Simplified layout schema allows the local model to run highly reliable extraction routines
+            var schema = {
+                "type": "object",
+                "properties": {
+                    "alerts": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "category": {
+                                    "type": "string",
+                                    "enum": ["patient", "staff", "clinic"]
+                                },
+                                "original_text": { "type": "string" }
+                            },
+                            "required": ["category", "original_text"],
+                            "additionalProperties": false
+                        }
+                    }
+                },
+                "required": ["alerts"],
+                "additionalProperties": false
+            };
+
+            return session.prompt(userPromptText, { responseConstraint: schema })
+                .then(function(resultText) {
+                    if (typeof session.destroy === "function") {
+                        session.destroy();
+                    }
+                    return resultText;
+                });
+        })
+        .then(function(resultText) {
+            var rawAlerts = [];
+            try {
+                var cleanText = resultText.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+                var parsedObj = JSON.parse(cleanText);
+                if (parsedObj) {
+                    if (Array.isArray(parsedObj)) {
+                        rawAlerts = parsedObj;
+                    } else if (parsedObj.alerts && Array.isArray(parsedObj.alerts)) {
+                        rawAlerts = parsedObj.alerts;
+                    }
+                }
+            } catch (e) {
+                CPLog.error(@"Failed parsing Gemini Nano structural result: " + e.message + ". Raw string: " + resultText);
+            }
+
+            // Construct positions, metadata and action targets cleanly in the frontend
+            var processedAlerts = [selfRef processRawAlerts:rawAlerts forText:pText paragraphIndex:pIndex];
+
+            var completedResult = {
+                "text": pText,
+                "alerts": processedAlerts,
+                "completed": true
+            };
+
+            [selfRef paragraphAnalysisDidFinish:completedResult atIndex:pIndex];
+        })
+        .catch(function(error) {
+            CPLog.error(@"Gemini Nano Paragraph Analysis pipeline execution failed: " + error.message);
+            var failedResult = {
+                "text": pText,
+                "alerts": [],
+                "completed": true
+            };
+            [selfRef paragraphAnalysisDidFinish:failedResult atIndex:pIndex];
+        });
+
+        return; // Prevent fetching remote endpoints
+    }
+
+    // --- SERVICE ROUTING: BACKEND INTEGRATED API HANDLERS ---
+    var fullPrompt = [self promptForLanguage:langCode text:pText];
     var endpoint = [defaults objectForKey:@"OllamaEndpoint"] || @"";
     var model = @"";
     var apiKey = @"";
@@ -877,9 +1125,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
         };
     }
 
-    var selfRef = self; // Keep safe reference for Javascript Async block callback
-
-    // Native browser-based fetch to enable browser-only usage (eliminates Perl Backend dependency)
+    // Native browser-based fetch to run browser-only usage (eliminates Perl Backend dependency)
     fetch(reqUrl, {
         method: 'POST',
         headers: headers,
@@ -887,7 +1133,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     })
     .then(function(response) {
         if (!response.ok) {
-            throw new Error("HTTP-Fehler! Status: " + response.status);
+            throw new Error("HTTP error! Status: " + response.status);
         }
         return response.json();
     })
@@ -907,31 +1153,19 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
         var rawAlerts = [];
         try {
-            rawAlerts = JSON.parse(responseText);
+            var parsed = JSON.parse(responseText);
+            if (parsed) {
+                if (Array.isArray(parsed)) {
+                    rawAlerts = parsed;
+                } else if (parsed.alerts && Array.isArray(parsed.alerts)) {
+                    rawAlerts = parsed.alerts;
+                }
+            }
         } catch (e) {
             CPLog.error(@"JSON Parsing Exception inside browser-only parser: " + e.message);
         }
 
-        var processedAlerts = [];
-        var id_counter = 0;
-
-        for (var i = 0; i < rawAlerts.length; i++) {
-            var alert = rawAlerts[i];
-            var orig = alert.original_text;
-            if (!orig || orig === "") continue;
-
-            var offset = pText.indexOf(orig);
-            if (offset === -1) {
-                offset = pText.toLowerCase().indexOf(orig.toLowerCase());
-            }
-
-            if (offset !== -1) {
-                alert.offset = offset;
-                alert.length = orig.length;
-                alert.id = "alert_" + pIndex + "_" + id_counter++;
-                processedAlerts.push(alert);
-            }
-        }
+        var processedAlerts = [selfRef processRawAlerts:rawAlerts forText:pText paragraphIndex:pIndex];
 
         var completedResult = {
             "text": pText,
@@ -942,7 +1176,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
         [selfRef paragraphAnalysisDidFinish:completedResult atIndex:pIndex];
     })
     .catch(function(error) {
-        CPLog.error(@"KI-Verarbeitung auf API-Seite für Absatz fehlgeschlagen: " + pIndex + @". Fehler: " + error);
+        CPLog.error(@"AI Processing failed on API side for paragraph " + pIndex + @". Error: " + error);
         var failedResult = {
             "text": pText,
             "alerts": [],
@@ -959,7 +1193,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     [_progressBar setDoubleValue:_completedParagraphs];
 
     var percent = Math.round((_completedParagraphs / _totalParagraphs) * 100);
-    [_statusLabel setStringValue:@"Analysiere Dokument... Fortschritt: " + percent + "%"];
+    [_statusLabel setStringValue:@"Analyzing document... Progress: " + percent + "%"];
 
     [self renderHighlightsAndSidebar];
 
@@ -968,7 +1202,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
         [_anonymizeButton setEnabled:YES];
         [_transferButton setEnabled:YES];
         [_progressBar setHidden:YES];
-        [_statusLabel setStringValue:@"Analyse abgeschlossen. Sensible Daten wurden farbig markiert."];
+        [_statusLabel setStringValue:@"Analysis complete. Sensitive data has been highlighted."];
     }
 }
 
@@ -1009,13 +1243,13 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
             var alert = alerts[j];
             var absRange = CPMakeRange(absoluteParaOffset + alert.offset, alert.length);
 
-            // ROT: Patientenidentifikation
+            // RED: Patient Identification
             var highlightColor = [CPColor colorWithRed:1.0 green:0.85 blue:0.85 alpha:1.0]; 
             if (alert.category === @"staff") {
-                // GRÜN: Medizinische Mitarbeiter
+                // GREEN: Medical Staff
                 highlightColor = [CPColor colorWithRed:0.85 green:0.95 blue:0.85 alpha:1.0]; 
             } else if (alert.category === @"clinic") {
-                // BLAU: Krankenhaus / Arztpraxis
+                // BLUE: Clinic / Hospital / Department
                 highlightColor = [CPColor colorWithRed:0.85 green:0.90 blue:1.0 alpha:1.0]; 
             }
 
@@ -1049,17 +1283,17 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     var container = [cardBox contentView];
     var contentWidth = CGRectGetWidth([container bounds]);
 
-    var cardBgColor = [CPColor colorWithRed:1.0 green:0.85 blue:0.85 alpha:1.0]; // Rot für Patient
+    var cardBgColor = [CPColor colorWithRed:1.0 green:0.85 blue:0.85 alpha:1.0]; // Red for Patient
     
     if (alert.category === @"staff") {
-        cardBgColor = [CPColor colorWithRed:0.85 green:0.95 blue:0.85 alpha:1.0]; // Grün für Personal
+        cardBgColor = [CPColor colorWithRed:0.85 green:0.95 blue:0.85 alpha:1.0]; // Green for Medical Staff
     } else if (alert.category === @"clinic") {
-        cardBgColor = [CPColor colorWithRed:0.85 green:0.90 blue:1.0 alpha:1.0]; // Blau für Klinik
+        cardBgColor = [CPColor colorWithRed:0.85 green:0.90 blue:1.0 alpha:1.0]; // Blue for Hospital/Clinic
     }
 
     [cardBox setFillColor:cardBgColor];
 
-    // Beschreibungstext (Hit-Tests sind deaktiviert, um Klicks an cardBox weiterzuleiten)
+    // Description Label (Hit-testing is disabled to forward events directly to cardBox)
     var description = [[CPTextField alloc] initWithFrame:CGRectMake(15, 5, contentWidth - 25, 45)];
     [description setStringValue:alert.explanation];
     [description setLineBreakMode:CPLineBreakByWordWrapping];
@@ -1069,9 +1303,9 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     [description setAutoresizingMask:CPViewWidthSizable];
     [container addSubview:description];
 
-    // Aktions-Button zur Einzelanonymisierung
+    // Action button for single-item anonymization
     var actionBtn = [[CPButton alloc] initWithFrame:CGRectMake(15, 52, contentWidth - 30, 26)];
-    [actionBtn setTitle:[CPString stringWithFormat:@"Ersetzen durch: '%@'", alert.suggested_text]];
+    [actionBtn setTitle:[CPString stringWithFormat:@"Replace with: '%@'", alert.suggested_text]];
     [actionBtn setFont:[CPFont boldSystemFontOfSize:11.0]];
     [actionBtn setTarget:self];
     [actionBtn setAction:@selector(applyCorrectionAction:)];
@@ -1111,7 +1345,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
         _isProgrammaticSelection = NO;
     }
 
-    // Clear any previously queued focus actions to debouce rapid navigation inputs
+    // Clear any previously queued focus actions to debounce rapid navigation inputs
     if (_focusTimeoutId)
     {
         clearTimeout(_focusTimeoutId);
@@ -1147,7 +1381,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     var pText = pData.text;
     var absoluteParaOffset = [docString rangeOfString:pText].location;
     if (absoluteParaOffset === CPNotFound) {
-        [_statusLabel setStringValue:@"Dokument-Kontext-Abweichung. Bitte erneut prüfen."];
+        [_statusLabel setStringValue:@"Document context mismatch. Please analyze again."];
         return;
     }
 
@@ -1194,7 +1428,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
         [self returnFocusToEditor];
     }
 
-    [_statusLabel setStringValue:@"Einzelnes Datum wurde erfolgreich geschützt."];
+    [_statusLabel setStringValue:@"Single data point was successfully anonymized."];
 }
 
 - (void)applyActiveCorrectionFromMenu:(id)sender
@@ -1264,7 +1498,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
     var currentFirst = [[_editorTextView window] firstResponder];
     
-    // Wenn der Editor aktiv ist und bereits eine Karte visuell markiert wurde, fokussiere diese direkt
+    // If the editor is active and a card has already been visually highlighted, focus it directly
     if (currentFirst === _editorTextView && _currentHighlightedCard)
     {
         [[_editorTextView window] makeFirstResponder:_currentHighlightedCard];
@@ -1289,7 +1523,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 
     var currentFirst = [[_editorTextView window] firstResponder];
     
-    // Wenn der Editor aktiv ist und bereits eine Karte visuell markiert wurde, fokussiere diese direkt
+    // If the editor is active and a card has already been visually highlighted, focus it directly
     if (currentFirst === _editorTextView && _currentHighlightedCard)
     {
         [[_editorTextView window] makeFirstResponder:_currentHighlightedCard];
@@ -1351,11 +1585,11 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
             if (cursorLoc >= alertStart && cursorLoc <= alertEnd) {
                 var activeCard = [_alertCardsMap objectForKey:alert.id];
                 if (activeCard) {
-                    var strongBorderColor = [CPColor colorWithRed:0.90 green:0.1 blue:0.1 alpha:1.0]; // Rot für Patient
+                    var strongBorderColor = [CPColor colorWithRed:0.90 green:0.1 blue:0.1 alpha:1.0]; // Red for Patient
                     if (alert.category === @"staff") {
-                        strongBorderColor = [CPColor colorWithRed:0.10 green:0.70 blue:0.10 alpha:1.0]; // Grün für Arzt
+                        strongBorderColor = [CPColor colorWithRed:0.10 green:0.70 blue:0.10 alpha:1.0]; // Green for Medical Staff
                     } else if (alert.category === @"clinic") {
-                        strongBorderColor = [CPColor colorWithRed:0.10 green:0.40 blue:0.90 alpha:1.0]; // Blau für Klinik
+                        strongBorderColor = [CPColor colorWithRed:0.10 green:0.40 blue:0.90 alpha:1.0]; // Blue for Clinic/Hospital
                     }
 
                     [activeCard setBorderWidth:2.5];
