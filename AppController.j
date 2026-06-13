@@ -1,5 +1,267 @@
 @import <AppKit/AppKit.j>
 @import <Foundation/CPObject.j>
+@import <Foundation/CPString.j>
+@import <Foundation/CPError.j>
+@import <Foundation/CPDictionary.j>
+
+// MARK: - CPSystemLanguageModel
+
+@implementation CPSystemLanguageModel : CPObject
+
++ (id)defaultModel
+{
+    var sharedInstance = nil;
+    if (!sharedInstance) {
+        sharedInstance = [[CPSystemLanguageModel alloc] init];
+    }
+    return sharedInstance;
+}
+
+/*!
+ * Checks if on-device language models are supported and readily available in this browser.
+ * This mirrors SystemLanguageModel.default.supportsLocale() using Chrome's capabilities API.
+ */
+- (void)supportsLocaleWithCompletionHandler:(Function)completionHandler
+{
+    if (typeof window === "undefined" || !completionHandler) {
+        if (completionHandler) {
+            completionHandler(NO);
+        }
+        return;
+    }
+
+    // Execute asynchronously to accommodate Chrome's Promise-based API
+    (async function() {
+        var supported = false;
+
+        try {
+            // Standard window.ai.languageModel check
+            if (window.ai && window.ai.languageModel) {
+                if (typeof window.ai.languageModel.capabilities === 'function') {
+                    var caps = await window.ai.languageModel.capabilities();
+                    supported = (caps.available === "readily" || caps.available === "after-download");
+                } else if (typeof window.ai.languageModel.availability === 'function') {
+                    var avail = await window.ai.languageModel.availability();
+                    supported = (avail === "readily" || avail === "available" || avail === "after-download");
+                } else {
+                    supported = true; // API exists but capability polling is absent
+                }
+            }
+            // Legacy interface check
+            else if (window.LanguageModel) {
+                supported = true;
+            }
+        } catch (e) {
+            supported = false;
+        }
+
+        completionHandler(supported);
+    })();
+}
+
+@end
+
+
+// MARK: - CPLanguageModelSession
+
+@implementation CPLanguageModelSession : CPObject
+{
+    id       _chromeSession @accessors(property=chromeSession);
+    CPString _instructions  @accessors(property=instructions);
+}
+
+/*!
+ * Initializes a session with specific system instructions.
+ * Mirrors: LanguageModelSession(instructions: "...")
+ */
+- (id)initWithInstructions:(CPString)instructions
+{
+    self = [super init];
+    if (self) {
+        _instructions = instructions;
+        _chromeSession = nil;
+    }
+    return self;
+}
+
+/*!
+ * Standard prompt execution.
+ * Mirrors Swift's: try await session.respond(to: prompt)
+ */
+- (void)respondToPrompt:(CPString)prompt completionHandler:(Function)completionHandler
+{
+    [self respondToPrompt:prompt options:nil completionHandler:completionHandler];
+}
+
+/*!
+ * Standard prompt execution supporting optional browser parameters (e.g., response schema constraints).
+ */
+- (void)respondToPrompt:(CPString)prompt options:(id)options completionHandler:(Function)completionHandler
+{
+    if (_chromeSession) {
+        [self _executePrompt:prompt options:options completionHandler:completionHandler];
+        return;
+    }
+
+    var selfRef = self,
+        instructions = [self instructions];
+
+    [CPLanguageModelSession _getChromeFactoryWithCompletionHandler:function(factory, error) {
+        if (error) {
+            completionHandler(nil, error);
+            return;
+        }
+
+        var sessionOptions = {};
+        if (instructions) {
+            sessionOptions.systemPrompt = instructions;
+        }
+
+        // Create the underlying Chrome AI session lazily on first run
+        factory.create(sessionOptions).then(function(session) {
+            [selfRef setChromeSession:session];
+            [selfRef _executePrompt:prompt options:options completionHandler:completionHandler];
+        }).catch(function(err) {
+            var cpError = [CPError errorWithDomain:@"CPLanguageModelErrorDomain" 
+                                              code:1 
+                                          userInfo:[CPDictionary dictionaryWithObject:err.message forKey:CPLocalizedDescriptionKey]];
+            completionHandler(nil, cpError);
+        });
+    }];
+}
+
+/*!
+ * Streaming prompt execution.
+ * Allows chunk-by-chunk processing for high-responsiveness.
+ */
+- (void)respondToPrompt:(CPString)prompt
+        onChunkReceived:(Function)chunkHandler
+              completed:(Function)completionHandler
+{
+    if (_chromeSession) {
+        [self _executePromptStreaming:prompt onChunkReceived:chunkHandler completed:completionHandler];
+        return;
+    }
+
+    var selfRef = self,
+        instructions = [self instructions];
+
+    [CPLanguageModelSession _getChromeFactoryWithCompletionHandler:function(factory, error) {
+        if (error) {
+            completionHandler(nil, error);
+            return;
+        }
+
+        var options = {};
+        if (instructions) {
+            options.systemPrompt = instructions;
+        }
+
+        factory.create(options).then(function(session) {
+            [selfRef setChromeSession:session];
+            [selfRef _executePromptStreaming:prompt onChunkReceived:chunkHandler completed:completionHandler];
+        }).catch(function(err) {
+            var cpError = [CPError errorWithDomain:@"CPLanguageModelErrorDomain" 
+                                              code:1 
+                                          userInfo:[CPDictionary dictionaryWithObject:err.message forKey:CPLocalizedDescriptionKey]];
+            completionHandler(nil, cpError);
+        });
+    }];
+}
+
+/*!
+ * Destroys the Chrome Prompt Session to free resources.
+ */
+- (void)destroy
+{
+    if (_chromeSession && typeof _chromeSession.destroy === "function") {
+        _chromeSession.destroy();
+        _chromeSession = nil;
+    }
+}
+
+
+// MARK: - Private Helper Methods
+
++ (void)_getChromeFactoryWithCompletionHandler:(Function)completionHandler
+{
+    if (typeof window === "undefined") {
+        var cpError = [CPError errorWithDomain:@"CPLanguageModelErrorDomain" code:-1 userInfo:[CPDictionary dictionaryWithObject:@"Execution environment is not a browser window." forKey:CPLocalizedDescriptionKey]];
+        completionHandler(nil, cpError);
+        return;
+    }
+
+    // Modern Chrome API check
+    if (window.ai && window.ai.languageModel) {
+        completionHandler(window.ai.languageModel, nil);
+    } 
+    // Legacy Chrome API check
+    else if (window.LanguageModel) {
+        completionHandler(window.LanguageModel, nil);
+    } 
+    else {
+        var cpError = [CPError errorWithDomain:@"CPLanguageModelErrorDomain" 
+                                          code:0 
+                                      userInfo:[CPDictionary dictionaryWithObject:@"Chrome Built-in AI (Gemini Nano) is not enabled or supported in this browser." forKey:CPLocalizedDescriptionKey]];
+        completionHandler(nil, cpError);
+    }
+}
+
+- (void)_executePrompt:(CPString)prompt options:(id)options completionHandler:(Function)completionHandler
+{
+    var promptPromise = options ? _chromeSession.prompt(prompt, options) : _chromeSession.prompt(prompt);
+    promptPromise.then(function(result) {
+        completionHandler(result, nil);
+    }).catch(function(err) {
+        var cpError = [CPError errorWithDomain:@"CPLanguageModelErrorDomain" 
+                                          code:2 
+                                      userInfo:[CPDictionary dictionaryWithObject:err.message forKey:CPLocalizedDescriptionKey]];
+        completionHandler(nil, cpError);
+    });
+}
+
+- (void)_executePromptStreaming:(CPString)prompt
+                onChunkReceived:(Function)chunkHandler
+                      completed:(Function)completionHandler
+{
+    var stream;
+    try {
+        stream = _chromeSession.promptStreaming(prompt);
+    } catch (err) {
+        var cpError = [CPError errorWithDomain:@"CPLanguageModelErrorDomain" 
+                                              code:3 
+                                          userInfo:[CPDictionary dictionaryWithObject:err.message forKey:CPLocalizedDescriptionKey]];
+        completionHandler(nil, cpError);
+        return;
+    }
+
+    // Process ES6 async generator stream within the Objective-J scope
+    (async function() {
+        var lastChunk = "";
+        try {
+            for await (const chunk of stream) {
+                lastChunk = chunk;
+                if (chunkHandler) {
+                    // Chrome's Prompt API returns cumulative response content in each chunk
+                    chunkHandler(chunk);
+                }
+            }
+            if (completionHandler) {
+                completionHandler(lastChunk, nil);
+            }
+        } catch (err) {
+            if (completionHandler) {
+                var cpError = [CPError errorWithDomain:@"CPLanguageModelErrorDomain" 
+                                                  code:2 
+                                              userInfo:[CPDictionary dictionaryWithObject:err.message forKey:CPLocalizedDescriptionKey]];
+                completionHandler(nil, cpError);
+            }
+        }
+    })();
+}
+
+@end
+
 
 // Custom background color attributes for layout highlights
 var CorrectionHighlightColorAttributeName = @"CorrectionHighlightColorAttributeName";
@@ -334,43 +596,26 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
     // Typical US-Style Initial Clinical Text Block
     [_editorTextView setString:@"Sone Hospital\nDepartment of Cardiology\n100 Some Street, New York, NY 10000\n\nReferral for Outpatient Cardiology Evaluation\n\nPatient: John Smith, DOB: 05/14/1965\nAddress: 450 West 11nd Street, New York, NY 1001\n\nDear Colleagues,\n\nWe are writing to report on the above-named patient, who was evaluated in our cardiology clinic on 06/04/2026. The comprehensive evaluation was performed by Dr. Sarah Jenkins, MD.\n\nSincerely,\nDr. Sarah Perkeo, MD\nDirector of Clinical Cardiology"];
 
-    // --- GEMINI NANO DETECTOR & DYNAMIC SETUP ON FIRST LAUNCH ---
+    // --- GEMINI NANO DETECTOR & SETUP VIA CPSystemLanguageModel ---
     if (isFirstLaunch) {
-        var checkPromise = null;
-
-        if (typeof LanguageModel !== "undefined" && typeof LanguageModel.availability === "function") {
-            checkPromise = LanguageModel.availability();
-        } else if (typeof ai !== "undefined" && ai.languageModel) {
-            if (typeof ai.languageModel.availability === "function") {
-                checkPromise = ai.languageModel.availability();
-            } else if (typeof ai.languageModel.capabilities === "function") {
-                checkPromise = ai.languageModel.capabilities().then(function(cap) { return cap.available; });
+        [[CPSystemLanguageModel defaultModel] supportsLocaleWithCompletionHandler:function(supported) {
+            if (supported) {
+                [defaults setObject:@"gemini-nano" forKey:@"ServiceType"];
+                [_statusLabel setStringValue:@"Chrome Gemini Nano detected! Automatically configured as the default service."];
+            } else {
+                [_statusLabel setStringValue:@"Paste clinical text. (Gemini Nano is available but not ready. OpenRouter active)."];
             }
-        }
-
-        if (checkPromise) {
-            checkPromise.then(function(status) {
-                if (status === "available" || status === "readily" || status === "after-download" || status === "downloadable") {
-                    [defaults setObject:@"gemini-nano" forKey:@"ServiceType"];
-                    [_statusLabel setStringValue:@"Chrome Gemini Nano detected! Automatically configured as the default service."];
-                } else {
-                    [_statusLabel setStringValue:@"Paste clinical text. (Gemini Nano is available but not ready. OpenRouter active)."];
-                }
-            })
-            .catch(function(err) {
-                [_statusLabel setStringValue:@"Paste clinical text. (Gemini Nano detection error. OpenRouter active)."];
-            });
-        } else {
-            [_statusLabel setStringValue:@"Paste clinical text. (Note: Gemini Nano On-Device AI is not available in this browser)."];
-        }
+        }];
     } else {
         var activeService = [defaults objectForKey:@"ServiceType"];
         if (activeService === @"gemini-nano") {
-            if (typeof LanguageModel === "undefined" && (typeof ai === "undefined" || typeof ai.languageModel === "undefined")) {
-                [_statusLabel setStringValue:@"Warning: Gemini Nano is configured, but currently unavailable in your browser!"];
-            } else {
-                [_statusLabel setStringValue:@"Active: On-Device Gemini Nano. Paste text and start analysis."];
-            }
+            [[CPSystemLanguageModel defaultModel] supportsLocaleWithCompletionHandler:function(supported) {
+                if (!supported) {
+                    [_statusLabel setStringValue:@"Warning: Gemini Nano is configured, but currently unavailable in your browser!"];
+                } else {
+                    [_statusLabel setStringValue:@"Active: On-Device Gemini Nano. Paste text and start analysis."];
+                }
+            }];
         }
     }
 }
@@ -791,7 +1036,7 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
 - (CPString)promptForLanguage:(CPString)langCode text:(CPString)pText
 {
     var lines = [
-        "You are a clinical privacy assistant tasked with identifying personally identifiable information (PII) and facility details in patient records [2.4.5].",
+        "You are a clinical privacy assistant tasked with identifying personally identifiable information (PII) and facility details in patient records.",
         "Analyze the provided text paragraph and identify all occurrences of entities belonging to these three categories:",
         "",
         "1. \"patient\": Patient names (e.g., John Smith), dates of birth (e.g., 05/14/1965), home addresses (e.g., 450 West 11nd Street, New York, NY 1001), phone numbers, insurance IDs, or patient record numbers.",
@@ -938,46 +1183,23 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
         var systemPromptText = [self systemPromptForLanguage:langCode];
         var userPromptText = [self userPromptForText:pText];
 
-        // Safe wrappers that gracefully cross-navigate the standards and legacy APIs
-        var checkAvailability = function() {
-            if (typeof LanguageModel !== "undefined" && typeof LanguageModel.availability === "function") {
-                return LanguageModel.availability({ languages: [langCode] });
+        // 1. Verify availability of Gemini Nano on-device AI
+        [[CPSystemLanguageModel defaultModel] supportsLocaleWithCompletionHandler:function(supported) {
+            if (!supported) {
+                CPLog.error(@"On-device Gemini Nano is not currently available.");
+                var failedResult = {
+                    "text": pText,
+                    "alerts": [],
+                    "completed": true
+                };
+                [selfRef paragraphAnalysisDidFinish:failedResult atIndex:pIndex];
+                return;
             }
-            if (typeof ai !== "undefined" && ai.languageModel) {
-                if (typeof ai.languageModel.availability === "function") {
-                    return ai.languageModel.availability({ languages: [langCode] });
-                }
-                if (typeof ai.languageModel.capabilities === "function") {
-                    return ai.languageModel.capabilities().then(function(cap) { return cap.available; });
-                }
-            }
-            return Promise.reject(new Error("Prompt API interfaces not found."));
-        };
 
-        var createSession = function(options) {
-            if (typeof LanguageModel !== "undefined" && typeof LanguageModel.create === "function") {
-                return LanguageModel.create(options);
-            }
-            if (typeof ai !== "undefined" && ai.languageModel && typeof ai.languageModel.create === "function") {
-                return ai.languageModel.create(options);
-            }
-            return Promise.reject(new Error("Unable to create session."));
-        };
+            // 2. Instantiate CPLanguageModelSession using Apple Foundation wrapper
+            var session = [[CPLanguageModelSession alloc] initWithInstructions:systemPromptText];
 
-        checkAvailability()
-        .then(function(status) {
-            if (status === "no" || status === "unavailable") {
-                throw new Error("Gemini Nano is unavailable.");
-            }
-            // Create session with optimal parameters using systemPrompt
-            return createSession({
-                systemPrompt: systemPromptText,
-                temperature: 0.0,
-                topK: 1
-            });
-        })
-        .then(function(session) {
-            // Simplified layout schema allows the local model to run highly reliable extraction routines
+            // 3. Define schema response format
             var schema = {
                 "type": "object",
                 "properties": {
@@ -1001,50 +1223,51 @@ var CPF2FunctionKey = CPF2FunctionKey || @"\uf705",
                 "additionalProperties": false
             };
 
-            return session.prompt(userPromptText, { responseConstraint: schema })
-                .then(function(resultText) {
-                    if (typeof session.destroy === "function") {
-                        session.destroy();
-                    }
-                    return resultText;
-                });
-        })
-        .then(function(resultText) {
-            var rawAlerts = [];
-            try {
-                var cleanText = resultText.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-                var parsedObj = JSON.parse(cleanText);
-                if (parsedObj) {
-                    if (Array.isArray(parsedObj)) {
-                        rawAlerts = parsedObj;
-                    } else if (parsedObj.alerts && Array.isArray(parsedObj.alerts)) {
-                        rawAlerts = parsedObj.alerts;
-                    }
-                }
-            } catch (e) {
-                CPLog.error(@"Failed parsing Gemini Nano structural result: " + e.message + ". Raw string: " + resultText);
-            }
+            // 4. Query the session using options constraints
+            [session respondToPrompt:userPromptText
+                             options:{ responseConstraint: schema }
+                   completionHandler:function(resultText, error) {
+                       
+                       [session destroy]; // Release resources promptly
 
-            // Construct positions, metadata and action targets cleanly in the frontend
-            var processedAlerts = [selfRef processRawAlerts:rawAlerts forText:pText paragraphIndex:pIndex];
+                       if (error) {
+                           CPLog.error(@"On-device analysis error: " + [error description]);
+                           var failedResult = {
+                               "text": pText,
+                               "alerts": [],
+                               "completed": true
+                           };
+                           [selfRef paragraphAnalysisDidFinish:failedResult atIndex:pIndex];
+                           return;
+                       }
 
-            var completedResult = {
-                "text": pText,
-                "alerts": processedAlerts,
-                "completed": true
-            };
+                       var rawAlerts = [];
+                       try {
+                           var cleanText = resultText.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+                           var parsedObj = JSON.parse(cleanText);
+                           if (parsedObj) {
+                               if (Array.isArray(parsedObj)) {
+                                   rawAlerts = parsedObj;
+                               } else if (parsedObj.alerts && Array.isArray(parsedObj.alerts)) {
+                                   rawAlerts = parsedObj.alerts;
+                               }
+                           }
+                       } catch (e) {
+                           CPLog.error(@"Failed parsing Gemini Nano result text: " + e.message);
+                       }
 
-            [selfRef paragraphAnalysisDidFinish:completedResult atIndex:pIndex];
-        })
-        .catch(function(error) {
-            CPLog.error(@"Gemini Nano Paragraph Analysis pipeline execution failed: " + error.message);
-            var failedResult = {
-                "text": pText,
-                "alerts": [],
-                "completed": true
-            };
-            [selfRef paragraphAnalysisDidFinish:failedResult atIndex:pIndex];
-        });
+                       // Dynamic parameters setup
+                       var processedAlerts = [selfRef processRawAlerts:rawAlerts forText:pText paragraphIndex:pIndex];
+
+                       var completedResult = {
+                           "text": pText,
+                           "alerts": processedAlerts,
+                           "completed": true
+                       };
+
+                       [selfRef paragraphAnalysisDidFinish:completedResult atIndex:pIndex];
+                   }];
+        }];
 
         return; // Prevent fetching remote endpoints
     }
